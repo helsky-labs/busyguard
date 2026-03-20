@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleCalendarProvider } from "@/lib/providers/google";
 import { createClient } from "@/lib/supabase/server";
+import { syncCalendars } from "@/lib/sync-engine";
 
 export async function GET(request: NextRequest) {
   try {
@@ -110,15 +111,60 @@ export async function GET(request: NextRequest) {
       is_included: cal.primary ?? false, // Only include primary calendar by default
     }));
 
+    const insertedCalendars = [];
+
     if (calendarsToInsert.length > 0) {
-      const { error: calendarsError } = await supabase
+      const { data: calendarsData, error: calendarsError } = await supabase
         .from("calendars")
-        .insert(calendarsToInsert);
+        .insert(calendarsToInsert)
+        .select();
 
       if (calendarsError) {
         console.error("Failed to store calendars:", calendarsError);
         // Don't fail entirely if calendars can't be stored - account is created
+      } else if (calendarsData) {
+        insertedCalendars.push(...calendarsData);
       }
+    }
+
+    // Set up watches for included calendars
+    const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/google`;
+
+    if (webhookToken && insertedCalendars.length > 0) {
+      for (const cal of insertedCalendars) {
+        if (!cal.is_included) continue;
+
+        try {
+          const watch = await authenticatedProvider.setupWatch(
+            cal.provider_calendar_id,
+            webhookToken,
+            webhookUrl
+          );
+
+          // Store webhook channel
+          await supabase.from("webhook_channels").insert({
+            calendar_id: cal.id,
+            provider: "google",
+            channel_id: watch.id,
+            resource_id: watch.resourceId,
+            expiry: new Date(parseInt(watch.expiration)).toISOString(),
+          });
+        } catch (error) {
+          console.error(
+            `Failed to set up watch for calendar ${cal.provider_calendar_id}:`,
+            error
+          );
+          // Continue with other calendars on error
+        }
+      }
+    }
+
+    // Trigger initial sync
+    try {
+      await syncCalendars(user.id);
+    } catch (error) {
+      console.error("Error during initial sync:", error);
+      // Don't block redirect on sync error - sync can be retried later
     }
 
     // Redirect to dashboard/accounts page
