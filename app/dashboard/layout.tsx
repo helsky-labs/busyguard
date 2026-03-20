@@ -42,6 +42,12 @@ export default async function DashboardLayout({
               Dashboard
             </Link>
             <Link
+              href="/dashboard/accounts"
+              className="block px-3 py-2 rounded-lg text-sm hover:bg-white"
+            >
+              Accounts
+            </Link>
+            <Link
               href="/dashboard/settings"
               className="block px-3 py-2 rounded-lg text-sm hover:bg-white"
             >
