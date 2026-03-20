@@ -1,8 +1,4 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 
 interface CalendarAccount {
   id: string
@@ -12,23 +8,29 @@ interface CalendarAccount {
   created_at: string
 }
 
-export default function AccountsPage() {
-  const searchParams = useSearchParams()
-  const [accounts, setAccounts] = useState<CalendarAccount[]>([])
-  const [loading, setLoading] = useState(true)
-  const [successMessage, setSuccessMessage] = useState('')
+interface PageProps {
+  searchParams: Promise<{ connected?: string }>
+}
 
-  useEffect(() => {
-    // Show success message if OAuth just completed
-    const connected = searchParams.get('connected')
-    if (connected) {
-      setSuccessMessage(`Successfully connected ${connected} account!`)
-      setTimeout(() => setSuccessMessage(''), 5000)
-    }
+export default async function AccountsPage({ searchParams }: PageProps) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    // Load accounts (will be implemented next)
-    setLoading(false)
-  }, [searchParams])
+  let accounts: CalendarAccount[] = []
+  if (user) {
+    const { data } = await supabase
+      .from('calendar_accounts')
+      .select('id, provider, email, display_name, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    accounts = data || []
+  }
+
+  const resolvedParams = await searchParams
+  const successMessage = resolvedParams.connected
+    ? `Successfully connected ${resolvedParams.connected} account!`
+    : null
 
   return (
     <div className="max-w-4xl">
@@ -88,9 +90,7 @@ export default function AccountsPage() {
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6 text-gray-900">Connected Accounts</h2>
 
-        {loading ? (
-          <p className="text-gray-600">Loading accounts...</p>
-        ) : accounts.length === 0 ? (
+        {accounts.length === 0 ? (
           <p className="text-gray-600 text-center py-8 bg-gray-50 rounded-lg">
             No accounts connected yet. Connect your first calendar above to get started.
           </p>
