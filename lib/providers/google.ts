@@ -40,6 +40,7 @@ export interface GoogleWatchResponse {
 export class GoogleCalendarProvider {
   private oauth2Client: OAuth2Client;
   private calendar = google.calendar("v3");
+  private redirectUri: string;
 
   constructor(
     clientId: string,
@@ -48,6 +49,7 @@ export class GoogleCalendarProvider {
     accessToken: string,
     refreshToken?: string
   ) {
+    this.redirectUri = redirectUri;
     this.oauth2Client = new OAuth2Client(clientId, clientSecret, redirectUri);
 
     if (accessToken) {
@@ -78,7 +80,10 @@ export class GoogleCalendarProvider {
    * Exchange authorization code for tokens
    */
   async exchangeCodeForToken(code: string) {
-    const { tokens } = await this.oauth2Client.getToken(code);
+    const { tokens } = await this.oauth2Client.getToken({
+      code,
+      redirect_uri: this.redirectUri,
+    });
     this.oauth2Client.setCredentials(tokens);
     return tokens;
   }
