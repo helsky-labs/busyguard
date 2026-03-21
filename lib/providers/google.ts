@@ -244,11 +244,14 @@ export class GoogleCalendarProvider {
     webhookUrl: string
   ): Promise<GoogleWatchResponse> {
     try {
+      // Sanitize calendar ID for use as webhook channel ID (Google requires [A-Za-z0-9\-_\+/=]+)
+      const sanitizedCalendarId = calendarId.replace(/[^A-Za-z0-9\-_]/g, '-');
+
       const response = await this.calendar.events.watch({
         auth: this.oauth2Client,
         calendarId,
         requestBody: {
-          id: `busyguard-${calendarId}-${Date.now()}`,
+          id: `busyguard-${sanitizedCalendarId}-${Date.now()}`,
           type: "web_hook",
           address: webhookUrl,
           token: webhookToken,
