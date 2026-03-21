@@ -1,4 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 interface CalendarAccount {
   id: string
@@ -8,29 +12,54 @@ interface CalendarAccount {
   created_at: string
 }
 
-interface PageProps {
-  searchParams: Promise<{ connected?: string }>
-}
+export default function AccountsPage() {
+  const searchParams = useSearchParams()
+  const [accounts, setAccounts] = useState<CalendarAccount[]>([])
+  const [loading, setLoading] = useState(true)
+  const [disconnecting, setDisconnecting] = useState<string | null>(null)
 
-export default async function AccountsPage({ searchParams }: PageProps) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  let accounts: CalendarAccount[] = []
-  if (user) {
-    const { data } = await supabase
-      .from('calendar_accounts')
-      .select('id, provider, email, display_name, created_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    accounts = data || []
-  }
-
-  const resolvedParams = await searchParams
-  const successMessage = resolvedParams.connected
-    ? `Successfully connected ${resolvedParams.connected} account!`
+  const successMessage = searchParams.get('connected')
+    ? `Successfully connected ${searchParams.get('connected')} account!`
     : null
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      const supabase = await createClient()
+      const { data } = await supabase
+        .from('calendar_accounts')
+        .select('id, provider, email, display_name, created_at')
+        .order('created_at', { ascending: false })
+
+      setAccounts(data || [])
+      setLoading(false)
+    }
+
+    fetchAccounts()
+  }, [])
+
+  const handleDisconnect = async (accountId: string) => {
+    if (!confirm('Are you sure you want to disconnect this account?')) return
+
+    setDisconnecting(accountId)
+    try {
+      const response = await fetch('/api/accounts/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      })
+
+      if (response.ok) {
+        setAccounts(accounts.filter((a) => a.id !== accountId))
+      } else {
+        alert('Failed to disconnect account')
+      }
+    } catch (error) {
+      console.error('Disconnect error:', error)
+      alert('Failed to disconnect account')
+    } finally {
+      setDisconnecting(null)
+    }
+  }
 
   return (
     <div className="max-w-4xl">
@@ -90,7 +119,9 @@ export default async function AccountsPage({ searchParams }: PageProps) {
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6 text-gray-900">Connected Accounts</h2>
 
-        {accounts.length === 0 ? (
+        {loading ? (
+          <p className="text-gray-600 text-center py-8">Loading accounts...</p>
+        ) : accounts.length === 0 ? (
           <p className="text-gray-600 text-center py-8 bg-gray-50 rounded-lg">
             No accounts connected yet. Connect your first calendar above to get started.
           </p>
@@ -110,8 +141,12 @@ export default async function AccountsPage({ searchParams }: PageProps) {
                     Connected on {new Date(account.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <button className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                  Disconnect
+                <button
+                  onClick={() => handleDisconnect(account.id)}
+                  disabled={disconnecting === account.id}
+                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
                 </button>
               </div>
             ))}
