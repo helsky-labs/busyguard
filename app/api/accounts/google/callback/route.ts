@@ -164,13 +164,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Trigger initial sync
-    try {
-      await syncCalendars(user.id);
-    } catch (error) {
+    // Trigger initial sync (fire and forget - don't block redirect)
+    syncCalendars(user.id).catch((error) => {
       console.error("Error during initial sync:", error);
-      // Don't block redirect on sync error - sync can be retried later
-    }
+    });
 
     // Redirect to dashboard/accounts page
     return NextResponse.redirect(
