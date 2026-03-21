@@ -1,9 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
 
-// Track in-flight syncs to prevent concurrent syncs for the same user
-const activeSyncs = new Map<string, Promise<void>>()
-
 interface CalendarWithAccount {
   id: string
   account_id: string
@@ -28,31 +25,8 @@ interface ManagedBusyBlock {
 /**
  * Main sync engine: creates and manages busy blocks across calendars
  * Runs as admin (bypasses RLS) since it's not triggered within a user session
- * Prevents concurrent syncs for the same user to avoid race conditions
  */
 export async function syncCalendars(userId: string): Promise<void> {
-  // If a sync is already running for this user, wait for it to finish
-  if (activeSyncs.has(userId)) {
-    console.log(`Sync already in progress for user ${userId}, waiting for it to complete`)
-    await activeSyncs.get(userId)
-    return
-  }
-
-  // Create the sync promise
-  const syncPromise = performSync(userId)
-  activeSyncs.set(userId, syncPromise)
-
-  try {
-    await syncPromise
-  } finally {
-    activeSyncs.delete(userId)
-  }
-}
-
-/**
- * Internal sync implementation
- */
-async function performSync(userId: string): Promise<void> {
   const admin = createAdminClient()
 
   // 1. Fetch all included calendars with their account credentials
@@ -158,39 +132,52 @@ async function createOrUpdateBusyBlock(
   event: any,
   providerMap: Map<string, GoogleCalendarProvider>
 ): Promise<void> {
+  // Check if block already exists
+  const { data: existing, error: existingError } = await admin
+    .from('managed_busy_blocks')
+    .select('*')
+    .eq('source_event_id', event.id)
+    .eq('source_calendar_id', sourceCalendar.id)
+    .eq('target_calendar_id', targetCalendar.id)
+    .maybeSingle()
+
+  if (existingError) {
+    console.error('Error checking existing busy block:', existingError)
+    return
+  }
+
   const busyStart = event.start.dateTime || event.start.date
   const busyEnd = event.end.dateTime || event.end.date
 
   try {
-    // Check if block already exists
-    const { data: existing } = await admin
-      .from('managed_busy_blocks')
-      .select('id, busy_event_id, event_start, event_end')
-      .eq('source_event_id', event.id)
-      .eq('source_calendar_id', sourceCalendar.id)
-      .eq('target_calendar_id', targetCalendar.id)
-      .maybeSingle()
-
-    const targetProvider = providerMap.get(targetCalendar.account_id)!
-    let busyEventId = existing?.busy_event_id
-
     if (existing) {
       // Update if times changed
       if (
         existing.event_start !== busyStart ||
         existing.event_end !== busyEnd
       ) {
+        const targetProvider = providerMap.get(targetCalendar.account_id)!
         await targetProvider.updateEvent(
           targetCalendar.provider_calendar_id,
-          busyEventId,
+          existing.busy_event_id,
           {
             start: event.start.dateTime ? { dateTime: busyStart } : { date: busyStart },
             end: event.end.dateTime ? { dateTime: busyEnd } : { date: busyEnd },
           }
         )
+
+        // Update DB
+        await admin
+          .from('managed_busy_blocks')
+          .update({
+            event_start: busyStart,
+            event_end: busyEnd,
+          })
+          .eq('id', existing.id)
       }
     } else {
-      // Create new busy block event in calendar first
+      // Create new busy block
+      const targetProvider = providerMap.get(targetCalendar.account_id)!
       const created = await targetProvider.createEvent(
         targetCalendar.provider_calendar_id,
         {
@@ -209,40 +196,17 @@ async function createOrUpdateBusyBlock(
           transparency: 'opaque',
         }
       )
-      busyEventId = created.id
 
-      // Use upsert to atomically insert or skip if already exists (due to unique constraint)
-      const { error: upsertError } = await admin
-        .from('managed_busy_blocks')
-        .upsert(
-          {
-            user_id: sourceCalendar.user_id,
-            source_event_id: event.id,
-            source_calendar_id: sourceCalendar.id,
-            busy_event_id: busyEventId,
-            target_calendar_id: targetCalendar.id,
-            event_start: busyStart,
-            event_end: busyEnd,
-          },
-          {
-            onConflict: 'source_event_id,source_calendar_id,target_calendar_id',
-          }
-        )
-
-      if (upsertError) {
-        console.error('Error upserting busy block record:', upsertError)
-      }
-    }
-
-    // Always update the record with latest times if it exists
-    if (existing) {
-      await admin
-        .from('managed_busy_blocks')
-        .update({
-          event_start: busyStart,
-          event_end: busyEnd,
-        })
-        .eq('id', existing.id)
+      // Insert record
+      await admin.from('managed_busy_blocks').insert({
+        user_id: sourceCalendar.user_id,
+        source_event_id: event.id,
+        source_calendar_id: sourceCalendar.id,
+        busy_event_id: created.id,
+        target_calendar_id: targetCalendar.id,
+        event_start: busyStart,
+        event_end: busyEnd,
+      })
     }
   } catch (error) {
     console.error(
