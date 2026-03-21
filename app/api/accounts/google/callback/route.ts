@@ -128,7 +128,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Set up watches for included calendars
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL;
+      appUrl = vercelUrl ? `https://${vercelUrl.replace(/^https?:\/\//, '')}` : undefined;
+    }
     const webhookUrl = `${appUrl}/api/webhooks/google`;
 
     if (webhookToken && insertedCalendars.length > 0) {
