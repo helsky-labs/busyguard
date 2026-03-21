@@ -197,8 +197,9 @@ async function createOrUpdateBusyBlock(
         }
       )
 
-      // Insert record
-      await admin.from('managed_busy_blocks').insert({
+      // Try to insert record. If it fails due to unique constraint (race condition),
+      // it means another sync created the same record. Delete our duplicate calendar event.
+      const { error: insertError } = await admin.from('managed_busy_blocks').insert({
         user_id: sourceCalendar.user_id,
         source_event_id: event.id,
         source_calendar_id: sourceCalendar.id,
@@ -207,6 +208,28 @@ async function createOrUpdateBusyBlock(
         event_start: busyStart,
         event_end: busyEnd,
       })
+
+      if (insertError) {
+        // Unique constraint violation - another sync beat us to it
+        if (insertError.code === '23505') {
+          console.log(
+            `Race condition detected: duplicate block for ${sourceCalendar.name} → ${targetCalendar.name}, cleaning up extra calendar event`
+          )
+          try {
+            await targetProvider.deleteEvent(
+              targetCalendar.provider_calendar_id,
+              created.id
+            )
+          } catch (deleteError) {
+            console.error(
+              `Failed to delete duplicate calendar event ${created.id}:`,
+              deleteError
+            )
+          }
+        } else {
+          console.error('Unexpected error inserting busy block:', insertError)
+        }
+      }
     }
   } catch (error) {
     console.error(
