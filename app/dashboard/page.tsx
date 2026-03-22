@@ -76,7 +76,7 @@ export default async function DashboardPage() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {stats.map(({ label, value, sub, icon: Icon }) => (
-          <Card key={label} className="hover:shadow-sm">
+          <Card key={label} className="hover:shadow-sm hover:-translate-y-0.5 transition-transform">
             <CardContent className="flex items-start gap-4">
               <div className="h-10 w-10 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
                 <Icon className="h-5 w-5" />

@@ -82,7 +82,7 @@ export default function Home() {
           <p className="text-center text-gray-600 mt-3">Simple plans, no surprises.</p>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 max-w-2xl mx-auto">
             {/* Monthly */}
-            <div className="rounded-xl bg-surface border border-gray-200 p-8 shadow-xs">
+            <div className="rounded-xl bg-surface border border-gray-200 p-8 shadow-xs hover:-translate-y-0.5 transition-transform">
               <h3 className="font-display font-semibold text-lg text-gray-900">Monthly</h3>
               <p className="mt-4 text-4xl font-bold text-gray-900">
                 $9<span className="text-lg font-normal text-gray-500">/mo</span>
@@ -104,7 +104,7 @@ export default function Home() {
             </div>
 
             {/* Yearly */}
-            <div className="rounded-xl bg-surface border-2 border-primary-600 p-8 shadow-sm relative">
+            <div className="rounded-xl bg-surface border-2 border-primary-600 p-8 shadow-sm relative hover:-translate-y-0.5 transition-transform">
               <span className="absolute -top-3 right-4 bg-primary-600 text-white text-xs font-medium px-2.5 py-1 rounded-md">
                 Save 20%
               </span>
