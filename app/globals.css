@@ -1,3 +1,161 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: 0 0% 99%;
+    --bg-secondary: 0 0% 96%;
+    --bg-elevated: 0 0% 100%;
+    --border-primary: 0 0% 90%;
+    --border-subtle: 0 0% 94%;
+    --text-primary: 0 0% 9%;
+    --text-secondary: 0 0% 40%;
+    --text-tertiary: 0 0% 55%;
+    --accent: 225 65% 52%;
+    --accent-hover: 225 65% 45%;
+    --accent-subtle: 225 65% 96%;
+    --success: 152 56% 40%;
+    --success-subtle: 152 56% 95%;
+    --danger: 0 72% 51%;
+    --danger-subtle: 0 72% 96%;
+    --warning: 38 92% 50%;
+    --warning-subtle: 38 92% 95%;
+  }
+
+  * {
+    border-color: hsl(var(--border-primary));
+  }
+
+  body {
+    color: hsl(var(--text-primary));
+    background-color: hsl(var(--bg-primary));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: hsl(var(--accent) / 0.12);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all duration-200;
+    background-color: hsl(var(--text-primary));
+  }
+  .btn-primary:hover {
+    background-color: hsl(0 0% 20%);
+    @apply shadow-lg shadow-black/10;
+  }
+  .btn-primary:active {
+    @apply scale-[0.98];
+  }
+  .btn-primary:disabled {
+    @apply opacity-40 cursor-not-allowed shadow-none;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all duration-200;
+    background-color: hsl(var(--accent));
+  }
+  .btn-accent:hover {
+    background-color: hsl(var(--accent-hover));
+    @apply shadow-lg shadow-blue-500/15;
+  }
+  .btn-accent:active {
+    @apply scale-[0.98];
+  }
+  .btn-accent:disabled {
+    @apply opacity-40 cursor-not-allowed shadow-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200;
+    color: hsl(var(--text-primary));
+    background-color: hsl(var(--bg-elevated));
+  }
+  .btn-secondary:hover {
+    background-color: hsl(var(--bg-secondary));
+  }
+  .btn-secondary:active {
+    @apply scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200;
+    color: hsl(var(--text-secondary));
+  }
+  .btn-ghost:hover {
+    background-color: hsl(var(--bg-secondary));
+    color: hsl(var(--text-primary));
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-xl border transition-all duration-200;
+    color: hsl(var(--danger));
+    border-color: hsl(var(--danger) / 0.2);
+  }
+  .btn-danger:hover {
+    background-color: hsl(var(--danger-subtle));
+  }
+
+  .card {
+    @apply rounded-2xl border p-6 transition-all duration-200;
+    background-color: hsl(var(--bg-elevated));
+    border-color: hsl(var(--border-primary));
+  }
+  .card:hover {
+    border-color: hsl(var(--border-primary) / 0.8);
+  }
+
+  .card-interactive {
+    @apply card;
+  }
+  .card-interactive:hover {
+    @apply shadow-sm;
+    border-color: hsl(0 0% 82%);
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 text-sm rounded-xl border outline-none transition-all duration-200;
+    background-color: hsl(var(--bg-elevated));
+    border-color: hsl(var(--border-primary));
+  }
+  .input-field:focus {
+    border-color: hsl(var(--accent));
+    box-shadow: 0 0 0 3px hsl(var(--accent) / 0.08);
+  }
+  .input-field::placeholder {
+    color: hsl(var(--text-tertiary));
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-lg;
+  }
+  .badge-neutral {
+    @apply badge;
+    background-color: hsl(var(--bg-secondary));
+    color: hsl(var(--text-secondary));
+  }
+  .badge-success {
+    @apply badge;
+    background-color: hsl(var(--success-subtle));
+    color: hsl(var(--success));
+  }
+  .badge-accent {
+    @apply badge;
+    background-color: hsl(var(--accent-subtle));
+    color: hsl(var(--accent));
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-wider;
+    color: hsl(var(--text-tertiary));
+  }
+
+  .divider {
+    @apply border-t;
+    border-color: hsl(var(--border-subtle));
+  }
+}

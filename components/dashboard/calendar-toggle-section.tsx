@@ -54,23 +54,23 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
 
   if (calendars.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <p className="text-gray-600">No calendars found. Connect an account to get started.</p>
+      <div className="card !p-10 text-center">
+        <p className="text-body text-content-secondary">No calendars found. Connect an account to get started.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-gray-900">Select Calendars to Sync</h2>
+    <div className="space-y-4">
+      <h2 className="text-heading-3">Select Calendars to Sync</h2>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+        <div className="p-4 rounded-xl text-body-sm font-medium bg-danger-subtle text-danger">
           {error}
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {Object.entries(calendarsByAccount).map(([accountId, accountCalendars]) => {
           const account = accountMap.get(accountId)
           if (!account) return null
@@ -78,67 +78,71 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
           const enabledCount = accountCalendars.filter((c) => c.is_included).length
 
           return (
-            <div
-              key={accountId}
-              className="bg-white rounded-lg border border-gray-200 p-6"
-            >
-              <div className="flex items-center gap-2 mb-4 pb-4 border-b">
-                <span className="text-lg">
-                  {account.provider === 'google' ? '🔵' : '⚪'}
-                </span>
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">
+            <div key={accountId} className="card">
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b">
+                <div className="w-8 h-8 rounded-lg bg-accent-subtle flex items-center justify-center shrink-0">
+                  <span className="text-caption font-semibold text-accent">
+                    {account.provider === 'google' ? 'G' : 'M'}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-body-sm truncate">
                     {account.display_name || account.email}
                   </p>
-                  <p className="text-xs text-gray-600 mt-0.5">
+                  <p className="text-caption text-content-tertiary">
                     {enabledCount} of {accountCalendars.length} calendars enabled
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {accountCalendars.map((calendar) => (
                   <div
                     key={calendar.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-surface-secondary transition-colors"
                   >
-                    <div className="flex-1">
-                      <label htmlFor={`cal-${calendar.id}`} className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          id={`cal-${calendar.id}`}
-                          type="checkbox"
-                          checked={calendar.is_included}
-                          onChange={() => handleToggle(calendar.id, calendar.is_included)}
-                          disabled={toggling === calendar.id}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 text-sm">
-                            {calendar.name}
+                    <label htmlFor={`cal-${calendar.id}`} className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
+                      <input
+                        id={`cal-${calendar.id}`}
+                        type="checkbox"
+                        checked={calendar.is_included}
+                        onChange={() => handleToggle(calendar.id, calendar.is_included)}
+                        disabled={toggling === calendar.id}
+                        className="w-4 h-4 rounded border-gray-300 text-accent accent-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-body-sm truncate">
+                          {calendar.name}
+                        </p>
+                        {calendar.description && (
+                          <p className="text-caption text-content-tertiary truncate">
+                            {calendar.description}
                           </p>
-                          {calendar.description && (
-                            <p className="text-xs text-gray-600 mt-0.5">
-                              {calendar.description}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    </div>
+                        )}
+                      </div>
+                    </label>
 
-                    <div className="ml-4 flex items-center gap-2">
+                    <div className="ml-3 flex items-center gap-2 shrink-0">
                       {calendar.sync_status === 'error' && (
-                        <span title={calendar.sync_error || 'Sync error'} aria-label="Sync error" role="img" className="text-red-500">
-                          ⚠️
+                        <span title={calendar.sync_error || 'Sync error'} aria-label="Sync error" role="img" className="text-danger text-body-sm">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 5v3.5M8 11h.005" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+                          </svg>
                         </span>
                       )}
                       {calendar.sync_status === 'syncing' && (
-                        <span aria-label="Syncing" role="img" className="text-yellow-500">⟳</span>
+                        <span className="badge-accent">Syncing</span>
                       )}
                       {calendar.sync_status === 'idle' && calendar.is_included && (
-                        <span aria-label="Synced" role="img" className="text-green-500">✓</span>
+                        <span className="text-success">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M3 7l2.5 2.5L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </span>
                       )}
                       {toggling === calendar.id && (
-                        <span className="text-gray-500 text-sm">Updating...</span>
+                        <span className="text-caption text-content-tertiary">Updating...</span>
                       )}
                     </div>
                   </div>

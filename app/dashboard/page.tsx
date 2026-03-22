@@ -58,60 +58,69 @@ export default async function DashboardPage() {
   const totalBlocks = Object.values(busyBlockCounts).reduce((sum, n) => sum + n, 0)
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-5xl space-y-8 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">
-          Manage your calendar accounts and choose which calendars to sync
+        <h1 className="text-heading-1">Dashboard</h1>
+        <p className="text-body-sm text-content-secondary mt-1">
+          Manage your calendar accounts and sync preferences
         </p>
       </div>
 
       {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Connected Accounts</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{accounts.length}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="card">
+          <p className="section-label">Connected Accounts</p>
+          <p className="text-3xl font-bold tracking-tight mt-2">{accounts.length}</p>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Calendars</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{calendars.length}</p>
-          <p className="text-xs text-gray-500 mt-1">
+        <div className="card">
+          <p className="section-label">Calendars</p>
+          <p className="text-3xl font-bold tracking-tight mt-2">{calendars.length}</p>
+          <p className="text-caption text-content-tertiary mt-1">
             {calendars.filter((c) => c.is_included).length} enabled
           </p>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Active Busy Blocks</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{totalBlocks}</p>
-          <p className="text-xs text-gray-500 mt-1">
+        <div className="card">
+          <p className="section-label">Active Busy Blocks</p>
+          <p className="text-3xl font-bold tracking-tight mt-2">{totalBlocks}</p>
+          <p className="text-caption text-content-tertiary mt-1">
             across {Object.keys(busyBlockCounts).length} calendars
           </p>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left column: Accounts and Calendar selection */}
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column */}
+        <div className="lg:col-span-2 space-y-6">
           <AccountListSection accounts={accounts} />
           {calendars.length > 0 && (
             <CalendarToggleSection calendars={calendars} accounts={accounts} />
           )}
         </div>
 
-        {/* Right column: Status and actions */}
+        {/* Right column */}
         <div className="space-y-6">
           {calendars.length > 0 && (
             <SyncStatusCard calendars={calendars} busyBlockCounts={busyBlockCounts} />
           )}
           <ConnectAccountCard />
-          <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-            <p className="text-sm font-semibold text-blue-900 mb-2">How it works</p>
-            <ul className="text-xs text-blue-800 space-y-1">
-              <li>• Connect your calendar accounts</li>
-              <li>• Select which calendars to sync</li>
-              <li>• We'll continuously sync your events</li>
-              <li>• Toggle calendars anytime</li>
+
+          {/* How it works */}
+          <div className="card !bg-accent-subtle !border-transparent">
+            <p className="text-body-sm font-semibold text-accent mb-3">How it works</p>
+            <ul className="space-y-2">
+              {[
+                'Connect your calendar accounts',
+                'Select which calendars to sync',
+                'We continuously sync your events',
+                'Toggle calendars anytime',
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-2.5 text-body-sm text-accent/80">
+                  <span className="text-caption font-semibold text-accent/50 mt-0.5">{String(i + 1).padStart(2, '0')}</span>
+                  {step}
+                </li>
+              ))}
             </ul>
           </div>
         </div>
@@ -119,18 +128,20 @@ export default async function DashboardPage() {
 
       {/* Empty State */}
       {accounts.length === 0 && (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-12 text-center">
-          <p className="text-3xl mb-4">📅</p>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="card !p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mx-auto mb-6">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
+              <rect x="3" y="5" width="22" height="20" rx="3"/>
+              <path d="M3 11h22M9 3v4M19 3v4"/>
+            </svg>
+          </div>
+          <h2 className="text-heading-2 mb-2">
             Get started with BusyGuard
           </h2>
-          <p className="text-gray-600 mb-6">
-            Connect your Google or Outlook calendar to sync your events
+          <p className="text-body text-content-secondary mb-8 max-w-sm mx-auto">
+            Connect your Google or Outlook calendar to start syncing your events automatically
           </p>
-          <a
-            href="/dashboard/accounts"
-            className="inline-block px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
+          <a href="/dashboard/accounts" className="btn-accent !px-8 !py-3">
             Connect your first account
           </a>
         </div>

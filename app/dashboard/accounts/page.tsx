@@ -111,139 +111,161 @@ export default function AccountsPage() {
     calendars.filter((c) => c.account_id === accountId)
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-3xl font-bold mb-8">Calendar Accounts</h1>
+    <div className="max-w-4xl animate-fade-in">
+      <h1 className="text-heading-1 mb-2">Calendar Accounts</h1>
+      <p className="text-body-sm text-content-secondary mb-8">
+        Connect and manage your calendar providers
+      </p>
 
       {successMessage && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+        <div className="mb-6 p-4 rounded-xl text-body-sm font-medium bg-success-subtle text-success">
           {successMessage}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Provider Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Google Calendar Card */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-start justify-between mb-4">
+        <div className="card">
+          <div className="flex items-start justify-between mb-5">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Google Calendar</h2>
-              <p className="text-sm text-gray-600 mt-1">Connect your Google Calendar to sync events</p>
+              <h2 className="text-heading-3">Google Calendar</h2>
+              <p className="text-body-sm text-content-secondary mt-1">Sync events from your Google account</p>
             </div>
-            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-              <span className="text-lg">🔴</span>
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M17.64 10.2c0-.637-.057-1.251-.164-1.84H10v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                <path d="M10 19c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H1.957v2.332A8.997 8.997 0 0010 19z" fill="#34A853"/>
+                <path d="M4.964 11.71A5.41 5.41 0 014.682 10c0-.593.102-1.17.282-1.71V5.958H1.957A8.997 8.997 0 001 10c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M10 4.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C14.463 1.891 12.426 1 10 1A8.997 8.997 0 001.957 5.958L4.964 8.29C5.672 6.163 7.656 4.58 10 4.58z" fill="#EA4335"/>
+              </svg>
             </div>
           </div>
-          <div className="mt-6 pt-4 border-t">
-            <a
-              href="/api/accounts/google/connect"
-              className="w-full inline-block text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Connect Google
-            </a>
-          </div>
+          <a
+            href="/api/accounts/google/connect"
+            className="btn-accent w-full"
+          >
+            Connect Google
+          </a>
         </div>
 
         {/* Microsoft Calendar Card */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-start justify-between mb-4">
+        <div className="card">
+          <div className="flex items-start justify-between mb-5">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Microsoft Outlook</h2>
-              <p className="text-sm text-gray-600 mt-1">Connect your Outlook calendar to sync events</p>
+              <h2 className="text-heading-3">Microsoft Outlook</h2>
+              <p className="text-body-sm text-content-secondary mt-1">Sync events from your Outlook account</p>
             </div>
-            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-              <span className="text-lg">⚪</span>
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <rect x="1" y="1" width="18" height="18" rx="2" fill="#0078D4" opacity="0.15"/>
+                <path d="M10 5l7 4v6l-7 4-7-4V9l7-4z" fill="#0078D4" opacity="0.3"/>
+              </svg>
             </div>
           </div>
-          <div className="mt-6 pt-4 border-t">
-            <button
-              disabled
-              className="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
-            >
-              Coming Soon
-            </button>
-          </div>
+          <button
+            disabled
+            className="btn-secondary w-full !opacity-40 !cursor-not-allowed"
+          >
+            Coming Soon
+          </button>
         </div>
       </div>
 
       {/* Connected Accounts with Calendars */}
       <div className="mt-12">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Connected Accounts</h2>
+        <h2 className="text-heading-2 mb-6">Connected Accounts</h2>
 
         {loading ? (
-          <p className="text-gray-600 text-center py-8">Loading accounts...</p>
+          <div className="card !p-12 text-center">
+            <p className="text-body-sm text-content-secondary">Loading accounts...</p>
+          </div>
         ) : accounts.length === 0 ? (
-          <p className="text-gray-600 text-center py-8 bg-gray-50 rounded-lg">
-            No accounts connected yet. Connect your first calendar above to get started.
-          </p>
+          <div className="card !p-12 text-center">
+            <p className="text-body text-content-secondary">
+              No accounts connected yet. Connect your first calendar above to get started.
+            </p>
+          </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {accounts.map((account) => {
               const accountCalendars = getCalendarsForAccount(account.id)
               const enabledCount = accountCalendars.filter((c) => c.is_included).length
 
               return (
-                <div key={account.id} className="bg-white rounded-lg shadow overflow-hidden">
+                <div key={account.id} className="card !p-0 overflow-hidden">
                   {/* Account header */}
-                  <div className="p-4 flex items-center justify-between border-b">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">
-                          {account.provider === 'google' ? '🔵' : '⚪'}
-                        </span>
-                        <p className="font-semibold text-gray-900">
-                          {account.display_name || account.email}
-                        </p>
-                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                          {account.provider === 'google' ? 'Google' : 'Outlook'}
+                  <div className="p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-accent-subtle flex items-center justify-center shrink-0">
+                        <span className="text-body-sm font-semibold text-accent">
+                          {account.provider === 'google' ? 'G' : 'M'}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{account.email}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Connected {new Date(account.created_at).toLocaleDateString()}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-body truncate">
+                            {account.display_name || account.email}
+                          </p>
+                          <span className="badge-neutral shrink-0">
+                            {account.provider === 'google' ? 'Google' : 'Outlook'}
+                          </span>
+                        </div>
+                        <p className="text-body-sm text-content-secondary truncate">{account.email}</p>
+                        <p className="text-caption text-content-tertiary mt-0.5">
+                          Connected {new Date(account.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() => handleDisconnect(account.id)}
                       disabled={disconnecting === account.id}
-                      className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-danger shrink-0 ml-4"
                     >
-                      {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
+                      {disconnecting === account.id ? 'Removing...' : 'Disconnect'}
                     </button>
                   </div>
 
                   {/* Calendars list */}
                   {accountCalendars.length > 0 && (
-                    <div className="p-4">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
-                        Calendars ({enabledCount}/{accountCalendars.length} syncing)
-                      </p>
-                      <div className="space-y-2">
-                        {accountCalendars.map((cal) => (
-                          <div
-                            key={cal.id}
-                            className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            <label htmlFor={`cal-${cal.id}`} className="flex items-center gap-3 cursor-pointer flex-1">
-                              <input
-                                id={`cal-${cal.id}`}
-                                type="checkbox"
-                                checked={cal.is_included}
-                                onChange={() => handleToggle(cal.id, cal.is_included)}
-                                disabled={toggling === cal.id}
-                                className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              />
-                              <span className="text-sm text-gray-900">{cal.name}</span>
-                            </label>
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              {toggling === cal.id && <span>Updating...</span>}
-                              {cal.is_included && cal.last_sync_at && (
-                                <span>Synced {timeAgo(cal.last_sync_at)}</span>
-                              )}
-                              {cal.is_included && (
-                                <span className="text-green-500">✓</span>
-                              )}
+                    <div className="px-5 pb-5 pt-0">
+                      <div className="border-t pt-4">
+                        <p className="section-label mb-3">
+                          Calendars ({enabledCount}/{accountCalendars.length} syncing)
+                        </p>
+                        <div className="space-y-1">
+                          {accountCalendars.map((cal) => (
+                            <div
+                              key={cal.id}
+                              className="flex items-center justify-between p-2.5 rounded-xl hover:bg-surface-secondary transition-colors"
+                            >
+                              <label htmlFor={`cal-${cal.id}`} className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
+                                <input
+                                  id={`cal-${cal.id}`}
+                                  type="checkbox"
+                                  checked={cal.is_included}
+                                  onChange={() => handleToggle(cal.id, cal.is_included)}
+                                  disabled={toggling === cal.id}
+                                  className="w-4 h-4 rounded border-gray-300 text-accent cursor-pointer accent-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                                />
+                                <span className="text-body-sm truncate">{cal.name}</span>
+                              </label>
+                              <div className="flex items-center gap-2 text-caption text-content-tertiary shrink-0 ml-3">
+                                {toggling === cal.id && <span className="text-content-secondary">Updating...</span>}
+                                {cal.is_included && cal.last_sync_at && (
+                                  <span>Synced {timeAgo(cal.last_sync_at)}</span>
+                                )}
+                                {cal.is_included && (
+                                  <span className="text-success">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                      <path d="M3 7l2.5 2.5L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}

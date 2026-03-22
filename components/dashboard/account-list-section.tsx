@@ -49,12 +49,9 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
 
   if (accounts.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <p className="text-gray-600 mb-4">No accounts connected yet.</p>
-        <Link
-          href="/dashboard/accounts"
-          className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
+      <div className="card !p-10 text-center">
+        <p className="text-body text-content-secondary mb-5">No accounts connected yet.</p>
+        <Link href="/dashboard/accounts" className="btn-accent">
           Connect your first account
         </Link>
       </div>
@@ -63,10 +60,10 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900">Connected Accounts</h2>
+      <h2 className="text-heading-3">Connected Accounts</h2>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+        <div className="p-4 rounded-xl text-body-sm font-medium bg-danger-subtle text-danger">
           {error}
         </div>
       )}
@@ -75,44 +72,47 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
         {accounts.map((account) => (
           <div
             key={account.id}
-            className="bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
+            className="card-interactive !p-4 flex items-center justify-between"
           >
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">
-                  {account.provider === 'google' ? '🔵' : '⚪'}
-                </span>
-                <p className="font-semibold text-gray-900">
-                  {account.display_name || account.email}
-                </p>
-                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                  {account.provider === 'google' ? 'Google' : 'Outlook'}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-9 h-9 rounded-xl bg-accent-subtle flex items-center justify-center shrink-0">
+                <span className="text-body-sm font-semibold text-accent">
+                  {account.provider === 'google' ? 'G' : 'M'}
                 </span>
               </div>
-              <p className="text-sm text-gray-600">{account.email}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Connected {new Date(account.created_at).toLocaleDateString()}
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="font-semibold text-body-sm truncate">
+                    {account.display_name || account.email}
+                  </p>
+                  <span className="badge-neutral shrink-0">
+                    {account.provider === 'google' ? 'Google' : 'Outlook'}
+                  </span>
+                </div>
+                <p className="text-caption text-content-tertiary truncate">
+                  {account.email} &middot; Connected {new Date(account.created_at).toLocaleDateString()}
+                </p>
+              </div>
             </div>
 
             <button
               onClick={() => handleDisconnect(account.id)}
               disabled={disconnecting === account.id}
               aria-label={`Disconnect ${account.display_name || account.email}`}
-              className="ml-4 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="btn-danger shrink-0 ml-4"
             >
-              {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
+              {disconnecting === account.id ? 'Removing...' : 'Disconnect'}
             </button>
           </div>
         ))}
       </div>
 
-      <div className="pt-2">
+      <div className="pt-1">
         <Link
           href="/dashboard/accounts"
-          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          className="text-body-sm text-accent font-medium hover:underline underline-offset-4"
         >
-          Add another account →
+          Add another account &rarr;
         </Link>
       </div>
     </div>

@@ -9,15 +9,18 @@ export default function DashboardError({
 }) {
   return (
     <div className="flex items-center justify-center px-4 py-24">
-      <div className="text-center max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard error</h1>
-        <p className="mt-4 text-gray-600">
+      <div className="text-center max-w-md animate-fade-in">
+        <div className="w-14 h-14 rounded-2xl bg-danger-subtle flex items-center justify-center mx-auto mb-6">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-danger">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <h1 className="text-heading-1">Dashboard error</h1>
+        <p className="mt-3 text-body text-content-secondary">
           Something went wrong loading the dashboard. Your calendars are still syncing in the background.
         </p>
-        <button
-          onClick={reset}
-          className="mt-6 px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
-        >
+        <button onClick={reset} className="btn-primary mt-8">
           Try again
         </button>
       </div>

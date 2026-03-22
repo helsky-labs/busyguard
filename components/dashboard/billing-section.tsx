@@ -41,39 +41,39 @@ export function BillingSection() {
   const hasSubscription = false
 
   return (
-    <div className="mt-4">
+    <div>
       {hasSubscription ? (
         <div>
-          <p className="text-sm text-gray-600">
-            You're on the <strong>Pro</strong> plan.
+          <p className="text-body-sm text-content-secondary">
+            You&apos;re on the <strong className="text-content-primary">Pro</strong> plan.
           </p>
           <button
             onClick={handleManageBilling}
             disabled={loading}
-            className="mt-4 px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            className="btn-secondary mt-4"
           >
             {loading ? 'Loading...' : 'Manage Billing'}
           </button>
         </div>
       ) : (
         <div>
-          <p className="text-sm text-gray-600">
-            You're on the free plan. Upgrade to unlock all features.
+          <p className="text-body-sm text-content-secondary">
+            You&apos;re on the free plan. Upgrade to unlock all features.
           </p>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex gap-3">
             <button
               onClick={() => handleUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_MONTHLY!)}
               disabled={loading}
-              className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+              className="btn-primary"
             >
-              Upgrade Monthly ($9/mo)
+              Monthly ($9/mo)
             </button>
             <button
               onClick={() => handleUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_YEARLY!)}
               disabled={loading}
-              className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              className="btn-secondary"
             >
-              Upgrade Yearly ($84/yr)
+              Yearly ($84/yr)
             </button>
           </div>
         </div>
