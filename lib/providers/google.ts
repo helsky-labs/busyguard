@@ -108,7 +108,7 @@ export class GoogleCalendarProvider {
   }
 
   /**
-   * List events in a specific calendar
+   * List events in a specific calendar (with pagination support)
    */
   async listEvents(
     calendarId: string,
@@ -116,24 +116,35 @@ export class GoogleCalendarProvider {
     timeMax?: string
   ): Promise<GoogleEvent[]> {
     try {
-      const response = await this.calendar.events.list({
-        auth: this.oauth2Client,
-        calendarId,
-        timeMin,
-        timeMax,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
+      const allEvents: GoogleEvent[] = [];
+      let pageToken: string | undefined;
 
-      return (response.data.items || []).map((event: any) => ({
-        id: event.id,
-        summary: event.summary,
-        description: event.description,
-        start: event.start,
-        end: event.end,
-        extendedProperties: event.extendedProperties,
-        iCalUID: event.iCalUID,
-      }));
+      do {
+        const response = await this.calendar.events.list({
+          auth: this.oauth2Client,
+          calendarId,
+          timeMin,
+          timeMax,
+          singleEvents: true,
+          orderBy: "startTime",
+          pageToken,
+        });
+
+        const events = (response.data.items || []).map((event: any) => ({
+          id: event.id,
+          summary: event.summary,
+          description: event.description,
+          start: event.start,
+          end: event.end,
+          extendedProperties: event.extendedProperties,
+          iCalUID: event.iCalUID,
+        }));
+
+        allEvents.push(...events);
+        pageToken = response.data.nextPageToken || undefined;
+      } while (pageToken);
+
+      return allEvents;
     } catch (error) {
       console.error(`Failed to list events for calendar ${calendarId}:`, error);
       throw error;
