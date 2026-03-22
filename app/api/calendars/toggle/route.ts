@@ -3,6 +3,14 @@ import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 
 export async function PATCH(request: NextRequest) {
+  const contentType = request.headers.get('content-type')
+  if (!contentType?.includes('application/json')) {
+    return NextResponse.json(
+      { error: 'Content-Type must be application/json' },
+      { status: 415 }
+    )
+  }
+
   try {
     const { calendarId, is_included } = await request.json()
 
