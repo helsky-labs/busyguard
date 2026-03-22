@@ -2,6 +2,102 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
 
 /**
+ * NUCLEAR OPTION: Delete ALL "Busy" and "(No title)" events from included calendars
+ * Starts fresh - next sync will recreate events cleanly
+ */
+export async function nuclearCleanup(userId: string): Promise<void> {
+  const admin = createAdminClient()
+
+  console.log('🔴 NUCLEAR CLEANUP: Deleting ALL "Busy" and "(No title)" events...')
+
+  // 1. Fetch only INCLUDED calendars
+  const { data: calendars, error: calError } = await admin
+    .from('calendars')
+    .select(
+      `id, account_id, provider_calendar_id, name,
+       calendar_accounts(access_token, refresh_token)`
+    )
+    .eq('user_id', userId)
+    .eq('is_included', true)
+
+  if (calError) {
+    console.error('Failed to fetch calendars:', calError)
+    throw calError
+  }
+
+  if (!calendars || calendars.length === 0) {
+    console.log('No calendars found')
+    return
+  }
+
+  // Build provider map
+  const providerMap = new Map<string, GoogleCalendarProvider>()
+  for (const cal of calendars) {
+    if (!providerMap.has(cal.account_id)) {
+      const accountData = Array.isArray(cal.calendar_accounts)
+        ? cal.calendar_accounts[0]
+        : cal.calendar_accounts
+
+      const provider = new GoogleCalendarProvider(
+        process.env.GOOGLE_CLIENT_ID!,
+        process.env.GOOGLE_CLIENT_SECRET!,
+        process.env.GOOGLE_REDIRECT_URI!,
+        accountData.access_token,
+        accountData.refresh_token ?? undefined
+      )
+      providerMap.set(cal.account_id, provider)
+    }
+  }
+
+  // 2. Delete ALL "Busy" and "(No title)" events
+  let totalDeleted = 0
+
+  for (const cal of calendars) {
+    try {
+      console.log(`\nProcessing calendar: ${cal.name}`)
+
+      const provider = providerMap.get(cal.account_id)!
+
+      // List all events in a wide range
+      const timeMin = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()
+      const timeMax = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()
+
+      const events = await provider.listEvents(cal.provider_calendar_id, timeMin, timeMax)
+
+      // Find ALL "Busy" and "(No title)" events
+      const toDelete = events.filter(
+        (e) => e.summary === 'Busy' || !e.summary || e.summary === '(No title)'
+      )
+
+      console.log(`Found ${toDelete.length} events to delete`)
+
+      for (const event of toDelete) {
+        try {
+          await provider.deleteEvent(cal.provider_calendar_id, event.id)
+          console.log(
+            `  ✓ Deleted: "${event.summary || '(No title)'}" at ${event.start.dateTime || event.start.date}`
+          )
+          totalDeleted++
+        } catch (error) {
+          if ((error as any)?.code === 410) {
+            console.log(`  ✓ Already deleted`)
+          } else {
+            console.error(`  ✗ Failed to delete ${event.id}:`, error)
+          }
+        }
+      }
+
+      console.log(`Deleted ${toDelete.length} events from ${cal.name}`)
+    } catch (error) {
+      console.error(`Error processing calendar ${cal.name}:`, error)
+    }
+  }
+
+  console.log(`\n🔴 NUCLEAR CLEANUP COMPLETE! Deleted ${totalDeleted} events`)
+  console.log('Next sync will recreate all events cleanly.')
+}
+
+/**
  * Aggressively clean up ALL duplicate "Busy" events from Google Calendar
  * Groups by time slot and keeps only ONE event per time slot per calendar
  */
