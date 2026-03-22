@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 import { logger } from '@/lib/logger';
+import { serverEnv } from '@/lib/env';
 import type { ExtendedProperties } from '@/lib/types';
 
 export interface GoogleCalendar {
@@ -320,4 +321,21 @@ export class GoogleCalendarProvider {
       displayName: response.data.names?.[0]?.displayName,
     };
   }
+}
+
+/**
+ * Factory: create a GoogleCalendarProvider from stored credentials.
+ * Centralizes provider construction to avoid duplicating env var access.
+ */
+export function createGoogleProvider(
+  accessToken: string,
+  refreshToken?: string | null
+): GoogleCalendarProvider {
+  return new GoogleCalendarProvider(
+    serverEnv.GOOGLE_CLIENT_ID,
+    serverEnv.GOOGLE_CLIENT_SECRET,
+    serverEnv.GOOGLE_REDIRECT_URI,
+    accessToken,
+    refreshToken ?? undefined
+  )
 }

@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { GoogleCalendarProvider } from '@/lib/providers/google'
-import { serverEnv } from '@/lib/env'
+import { createGoogleProvider, type GoogleCalendarProvider } from '@/lib/providers/google'
 import { logger } from '@/lib/logger'
 
 /**
@@ -40,12 +39,9 @@ export async function nuclearCleanup(userId: string): Promise<void> {
         ? cal.calendar_accounts[0]
         : cal.calendar_accounts
 
-      const provider = new GoogleCalendarProvider(
-        serverEnv.GOOGLE_CLIENT_ID,
-        serverEnv.GOOGLE_CLIENT_SECRET,
-        serverEnv.GOOGLE_REDIRECT_URI,
+      const provider = createGoogleProvider(
         accountData.access_token,
-        accountData.refresh_token ?? undefined
+        accountData.refresh_token
       )
       providerMap.set(cal.account_id, provider)
     }
@@ -143,12 +139,9 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
         ? cal.calendar_accounts[0]
         : cal.calendar_accounts
 
-      const provider = new GoogleCalendarProvider(
-        serverEnv.GOOGLE_CLIENT_ID,
-        serverEnv.GOOGLE_CLIENT_SECRET,
-        serverEnv.GOOGLE_REDIRECT_URI,
+      const provider = createGoogleProvider(
         accountData.access_token,
-        accountData.refresh_token ?? undefined
+        accountData.refresh_token
       )
       providerMap.set(cal.account_id, provider)
     }

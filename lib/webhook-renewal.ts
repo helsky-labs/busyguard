@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { GoogleCalendarProvider } from '@/lib/providers/google'
+import { createGoogleProvider } from '@/lib/providers/google'
 import { serverEnv, publicEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
 
@@ -101,12 +101,9 @@ async function renewWebhookChannel(
     ? calendar.calendar_accounts[0]
     : calendar.calendar_accounts
 
-  const provider = new GoogleCalendarProvider(
-    serverEnv.GOOGLE_CLIENT_ID,
-    serverEnv.GOOGLE_CLIENT_SECRET,
-    serverEnv.GOOGLE_REDIRECT_URI,
+  const provider = createGoogleProvider(
     accountData.access_token,
-    accountData.refresh_token ?? undefined
+    accountData.refresh_token
   )
 
   // Step 1: Stop the old watch (graceful cleanup)

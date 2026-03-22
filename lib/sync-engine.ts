@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { GoogleCalendarProvider, type GoogleEvent } from '@/lib/providers/google'
-import { serverEnv } from '@/lib/env'
+import { GoogleCalendarProvider, createGoogleProvider, type GoogleEvent } from '@/lib/providers/google'
 import { logger } from '@/lib/logger'
 import { acquireSyncLock, releaseSyncLock } from '@/lib/sync-lock'
 import type { CalendarAccountCredentials } from '@/lib/types'
@@ -363,14 +362,6 @@ async function cleanupOrphanedBlocks(
   }
 }
 
-function buildProvider(
-  account: CalendarAccountCredentials
-): GoogleCalendarProvider {
-  return new GoogleCalendarProvider(
-    serverEnv.GOOGLE_CLIENT_ID,
-    serverEnv.GOOGLE_CLIENT_SECRET,
-    serverEnv.GOOGLE_REDIRECT_URI,
-    account.access_token,
-    account.refresh_token ?? undefined
-  )
+function buildProvider(account: CalendarAccountCredentials): GoogleCalendarProvider {
+  return createGoogleProvider(account.access_token, account.refresh_token)
 }
