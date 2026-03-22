@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 import { logger } from '@/lib/logger';
+import type { ExtendedProperties } from '@/lib/types';
 
 export interface GoogleCalendar {
   id: string;
@@ -25,7 +26,7 @@ export interface GoogleEvent {
     date?: string | null;
     timeZone?: string | null;
   };
-  extendedProperties?: any;
+  extendedProperties?: ExtendedProperties;
   iCalUID?: string | null;
 }
 
@@ -95,13 +96,13 @@ export class GoogleCalendarProvider {
         pageToken: undefined,
       });
 
-      return (response.data.items || []).map((cal: any) => ({
-        id: cal.id,
-        summary: cal.summary,
-        description: cal.description,
-        backgroundColor: cal.backgroundColor,
-        foregroundColor: cal.foregroundColor,
-        primary: cal.primary,
+      return (response.data.items || []).map((cal) => ({
+        id: cal.id!,
+        summary: cal.summary!,
+        description: cal.description ?? undefined,
+        backgroundColor: cal.backgroundColor ?? undefined,
+        foregroundColor: cal.foregroundColor ?? undefined,
+        primary: cal.primary ?? undefined,
       }));
     } catch (error) {
       logger.error('Failed to list calendars', { error: error instanceof Error ? error.message : String(error) });
@@ -132,13 +133,13 @@ export class GoogleCalendarProvider {
           pageToken,
         });
 
-        const events = (response.data.items || []).map((event: any) => ({
-          id: event.id,
-          summary: event.summary,
+        const events = (response.data.items || []).map((event) => ({
+          id: event.id!,
+          summary: event.summary ?? '',
           description: event.description,
-          start: event.start,
-          end: event.end,
-          extendedProperties: event.extendedProperties,
+          start: event.start!,
+          end: event.end!,
+          extendedProperties: event.extendedProperties as ExtendedProperties | undefined,
           iCalUID: event.iCalUID,
         }));
 

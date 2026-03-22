@@ -33,3 +33,13 @@ export interface SyncStatus {
   next_sync: string | null
   error_message: string | null
 }
+
+export interface ExtendedProperties {
+  private?: Record<string, string>
+  shared?: Record<string, string>
+}
+
+export interface CalendarAccountCredentials {
+  access_token: string
+  refresh_token?: string | null
+}

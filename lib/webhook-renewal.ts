@@ -3,23 +3,22 @@ import { GoogleCalendarProvider } from '@/lib/providers/google'
 import { serverEnv, publicEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
 
+import type { CalendarAccountCredentials } from '@/lib/types'
+
+interface CalendarWithAccount {
+  id: string
+  account_id: string
+  provider_calendar_id: string
+  calendar_accounts: CalendarAccountCredentials | CalendarAccountCredentials[]
+}
+
 interface WebhookChannel {
   id: string
   calendar_id: string
   channel_id: string
   resource_id: string
   expiry: string
-  calendars: any // Supabase nested select returns array or object
-}
-
-interface CalendarWithAccount {
-  id: string
-  account_id: string
-  provider_calendar_id: string
-  calendar_accounts: {
-    access_token: string
-    refresh_token?: string | null
-  }
+  calendars: CalendarWithAccount | CalendarWithAccount[]
 }
 
 /**
@@ -98,8 +97,9 @@ async function renewWebhookChannel(
   logger.info('Renewing webhook channel', { channelId: channel.channel_id, calendarId: calendar.provider_calendar_id })
 
   // Build provider from account credentials
-  const accountsData = calendar.calendar_accounts as any
-  const accountData = Array.isArray(accountsData) ? accountsData[0] : accountsData
+  const accountData = Array.isArray(calendar.calendar_accounts)
+    ? calendar.calendar_accounts[0]
+    : calendar.calendar_accounts
 
   const provider = new GoogleCalendarProvider(
     serverEnv.GOOGLE_CLIENT_ID,

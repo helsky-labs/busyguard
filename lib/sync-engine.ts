@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { GoogleCalendarProvider } from '@/lib/providers/google'
+import { GoogleCalendarProvider, type GoogleEvent } from '@/lib/providers/google'
 import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import type { CalendarAccountCredentials } from '@/lib/types'
 
 interface CalendarWithAccount {
   id: string
@@ -11,7 +12,7 @@ interface CalendarWithAccount {
   name: string
   is_included: boolean
   color?: string
-  calendar_accounts: any // Supabase returns nested relations
+  calendar_accounts: CalendarAccountCredentials | CalendarAccountCredentials[]
 }
 
 interface ManagedBusyBlock {
@@ -132,7 +133,7 @@ async function createOrUpdateBusyBlock(
   admin: ReturnType<typeof createAdminClient>,
   sourceCalendar: CalendarWithAccount,
   targetCalendar: CalendarWithAccount,
-  event: any,
+  event: GoogleEvent,
   providerMap: Map<string, GoogleCalendarProvider>
 ): Promise<void> {
   const busyStart = event.start.dateTime || event.start.date
@@ -269,7 +270,7 @@ async function findOrphanedEvent(
   sourceEventId: string,
   busyStart: string,
   busyEnd: string
-): Promise<any> {
+): Promise<GoogleEvent | null> {
   try {
     // Calculate a reasonable search window around the event times
     // For all-day events, expand the range; for timed events, be tighter
@@ -299,7 +300,7 @@ async function findOrphanedEvent(
         e.extendedProperties?.private?.sourceEventId === sourceEventId
     )
 
-    return orphaned
+    return orphaned ?? null
   } catch (error) {
     logger.error('Error searching for orphaned event', {
       error: error instanceof Error ? error.message : String(error),
