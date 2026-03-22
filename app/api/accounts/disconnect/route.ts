@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       .eq("id", accountId);
 
     if (deleteError) {
-      console.error("Failed to delete account:", deleteError);
+      logger.error("Failed to delete account", { error: deleteError.message });
       return NextResponse.json(
         { error: "Failed to disconnect account" },
         { status: 500 }
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error in disconnect:", error);
+    logger.error("Error in disconnect", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Failed to disconnect account" },
       { status: 500 }

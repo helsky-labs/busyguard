@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
 import { serverEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 interface CalendarWithAccount {
   id: string
@@ -41,12 +42,12 @@ export async function syncCalendars(userId: string): Promise<void> {
     .eq('is_included', true)
 
   if (calendarsError) {
-    console.error('Failed to fetch calendars:', calendarsError)
+    logger.error('Failed to fetch calendars', { error: calendarsError })
     throw calendarsError
   }
 
   if (!calendars || calendars.length === 0) {
-    console.log('No included calendars found for user:', userId)
+    logger.info('No included calendars found', { userId })
     return
   }
 
@@ -111,10 +112,10 @@ export async function syncCalendars(userId: string): Promise<void> {
         }
       }
     } catch (error) {
-      console.error(
-        `Error syncing calendar ${sourceCalendar.provider_calendar_id}:`,
-        error
-      )
+      logger.error('Error syncing calendar', {
+        calendarId: sourceCalendar.provider_calendar_id,
+        error: error instanceof Error ? error.message : String(error),
+      })
       // Continue with other calendars on error
     }
   }
@@ -149,7 +150,7 @@ async function createOrUpdateBusyBlock(
       .maybeSingle()
 
     if (existingError) {
-      console.error('Error checking existing busy block:', existingError)
+      logger.error('Error checking existing busy block', { error: existingError })
       return
     }
 
@@ -196,9 +197,10 @@ async function createOrUpdateBusyBlock(
     if (orphanedEvent) {
       // Event exists on Google Calendar but not in DB - reuse it and log it
       busyEventId = orphanedEvent.id
-      console.log(
-        `Found orphaned busy event ${busyEventId} for source ${event.id}, reusing it`
-      )
+      logger.info('Found orphaned busy event, reusing', {
+        busyEventId,
+        sourceEventId: event.id,
+      })
     } else {
       // Create new event
       const created = await targetProvider.createEvent(
@@ -240,18 +242,20 @@ async function createOrUpdateBusyBlock(
       if (insertError.code === '23505') {
         // Race condition: another sync created this record between our check and insert
         // This is harmless - the other sync's event ID is in the DB
-        console.log(
-          `Race condition for ${event.id} on ${targetCalendar.name}: DB record already exists`
-        )
+        logger.info('Race condition: DB record already exists', {
+          sourceEventId: event.id,
+          targetCalendar: targetCalendar.name,
+        })
       } else {
-        console.error('Unexpected error inserting busy block:', insertError)
+        logger.error('Unexpected error inserting busy block', { error: insertError })
       }
     }
   } catch (error) {
-    console.error(
-      `Error creating/updating busy block from ${sourceCalendar.name} to ${targetCalendar.name}:`,
-      error
-    )
+    logger.error('Error creating/updating busy block', {
+      source: sourceCalendar.name,
+      target: targetCalendar.name,
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }
 
@@ -297,7 +301,9 @@ async function findOrphanedEvent(
 
     return orphaned
   } catch (error) {
-    console.error(`Error searching for orphaned event:`, error)
+    logger.error('Error searching for orphaned event', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return null
   }
 }
@@ -321,7 +327,7 @@ async function cleanupOrphanedBlocks(
     .eq('user_id', userId)
 
   if (blocksError) {
-    console.error('Error fetching managed blocks:', blocksError)
+    logger.error('Error fetching managed blocks', { error: blocksError })
     return
   }
 
@@ -338,7 +344,10 @@ async function cleanupOrphanedBlocks(
         // Delete from DB
         await admin.from('managed_busy_blocks').delete().eq('id', block.id)
       } catch (error) {
-        console.error(`Error cleaning up block ${block.id}:`, error)
+        logger.error('Error cleaning up block', {
+          blockId: block.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
   }

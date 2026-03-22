@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
 import { serverEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 interface DuplicateBlock {
   source_event_id: string
@@ -20,7 +21,7 @@ interface DuplicateBlock {
 export async function cleanupDuplicates(userId: string): Promise<void> {
   const admin = createAdminClient()
 
-  console.log('Starting duplicate cleanup...')
+  logger.info('Starting duplicate cleanup')
 
   // 1. Find all calendars with account info (needed for provider)
   const { data: calendars, error: calError } = await admin
@@ -32,7 +33,7 @@ export async function cleanupDuplicates(userId: string): Promise<void> {
     .eq('user_id', userId)
 
   if (calError) {
-    console.error('Failed to fetch calendars:', calError)
+    logger.error('Failed to fetch calendars', { error: calError instanceof Error ? calError.message : String(calError) })
     throw calError
   }
 
@@ -74,7 +75,7 @@ export async function cleanupDuplicates(userId: string): Promise<void> {
     .eq('user_id', userId)
 
   if (blocksError) {
-    console.error('Failed to fetch blocks:', blocksError)
+    logger.error('Failed to fetch blocks', { error: blocksError instanceof Error ? blocksError.message : String(blocksError) })
     throw blocksError
   }
 
@@ -119,7 +120,7 @@ export async function cleanupDuplicates(userId: string): Promise<void> {
     }
   }
 
-  console.log(`Found ${duplicates.length} duplicate sets (${totalToDelete} blocks to delete)`)
+  logger.info('Found duplicate sets', { duplicateSets: duplicates.length, blocksToDelete: totalToDelete })
 
   // 4. Delete from Google Calendar first
   for (const dup of duplicates) {
@@ -127,17 +128,14 @@ export async function cleanupDuplicates(userId: string): Promise<void> {
       try {
         const provider = providerMap.get(block.account_id)
         if (!provider) {
-          console.warn(`No provider for account ${block.account_id}`)
+          logger.warn('No provider for account', { accountId: block.account_id })
           continue
         }
 
         await provider.deleteEvent(block.provider_calendar_id, block.busy_event_id)
-        console.log(`Deleted event ${block.busy_event_id} from Google Calendar`)
+        logger.info('Deleted event from Google Calendar', { busyEventId: block.busy_event_id })
       } catch (error) {
-        console.error(
-          `Failed to delete event ${block.busy_event_id} from Google Calendar:`,
-          error
-        )
+        logger.error('Failed to delete event from Google Calendar', { busyEventId: block.busy_event_id, error: error instanceof Error ? error.message : String(error) })
       }
     }
   }
@@ -147,12 +145,12 @@ export async function cleanupDuplicates(userId: string): Promise<void> {
     for (const block of dup.blocks) {
       try {
         await admin.from('managed_busy_blocks').delete().eq('id', block.id)
-        console.log(`Deleted DB record ${block.id}`)
+        logger.info('Deleted DB record', { blockId: block.id })
       } catch (error) {
-        console.error(`Failed to delete DB record ${block.id}:`, error)
+        logger.error('Failed to delete DB record', { blockId: block.id, error: error instanceof Error ? error.message : String(error) })
       }
     }
   }
 
-  console.log(`Cleanup complete! Deleted ${totalToDelete} duplicate blocks`)
+  logger.info('Cleanup complete', { deletedBlocks: totalToDelete })
 }

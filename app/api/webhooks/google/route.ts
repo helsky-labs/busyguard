@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { syncCalendars } from '@/lib/sync-engine'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,12 +11,12 @@ export async function POST(request: NextRequest) {
 
     // TEMPORARILY DISABLED: Webhook processing is disabled to prevent duplicate event creation
     // TODO: Re-enable after fixing webhook channel validation and sync logic
-    console.log('⚠️ Webhook received but processing is disabled (resourceState:', resourceState, ')')
+    logger.info('Webhook received but processing is disabled', { resourceState })
 
     // Always return 200 to acknowledge receipt and prevent Google retries
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('Error in Google webhook handler:', error)
+    logger.error('Error in Google webhook handler', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json({ received: true })
   }
 }

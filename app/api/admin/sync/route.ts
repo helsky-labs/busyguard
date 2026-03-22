@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { syncCalendars } from '@/lib/sync-engine'
+import { logger } from '@/lib/logger'
 
 /**
  * Admin endpoint to manually trigger calendar sync
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // TODO: Add authentication check here
-    console.log(`Starting sync for user ${userId}`)
+    logger.info('Starting sync', { userId })
     const startTime = Date.now()
 
     await syncCalendars(userId)
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
       durationMs: duration,
     })
   } catch (error) {
-    console.error('Sync failed:', error)
+    logger.error('Sync failed', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       {
         error: 'Sync failed',

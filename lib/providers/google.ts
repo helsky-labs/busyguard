@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
+import { logger } from '@/lib/logger';
 
 export interface GoogleCalendar {
   id: string;
@@ -102,7 +103,7 @@ export class GoogleCalendarProvider {
         primary: cal.primary,
       }));
     } catch (error) {
-      console.error("Failed to list calendars:", error);
+      logger.error('Failed to list calendars', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -146,7 +147,7 @@ export class GoogleCalendarProvider {
 
       return allEvents;
     } catch (error) {
-      console.error(`Failed to list events for calendar ${calendarId}:`, error);
+      logger.error('Failed to list events for calendar', { calendarId, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -187,7 +188,7 @@ export class GoogleCalendarProvider {
         iCalUID: response.data.iCalUID,
       };
     } catch (error) {
-      console.error(`Failed to create event in calendar ${calendarId}:`, error);
+      logger.error('Failed to create event in calendar', { calendarId, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -218,10 +219,7 @@ export class GoogleCalendarProvider {
         iCalUID: response.data.iCalUID,
       };
     } catch (error) {
-      console.error(
-        `Failed to update event ${eventId} in calendar ${calendarId}:`,
-        error
-      );
+      logger.error('Failed to update event in calendar', { calendarId, eventId, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -237,10 +235,7 @@ export class GoogleCalendarProvider {
         eventId,
       });
     } catch (error) {
-      console.error(
-        `Failed to delete event ${eventId} from calendar ${calendarId}:`,
-        error
-      );
+      logger.error('Failed to delete event from calendar', { calendarId, eventId, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -278,7 +273,7 @@ export class GoogleCalendarProvider {
         expiration: response.data.expiration!,
       };
     } catch (error) {
-      console.error(`Failed to set up watch for calendar ${calendarId}:`, error);
+      logger.error('Failed to set up watch for calendar', { calendarId, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -300,10 +295,7 @@ export class GoogleCalendarProvider {
         },
       });
     } catch (error) {
-      console.error(
-        `Failed to stop watch for calendar ${calendarId}:`,
-        error
-      );
+      logger.error('Failed to stop watch for calendar', { calendarId, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }

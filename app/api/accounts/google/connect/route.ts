@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleCalendarProvider } from "@/lib/providers/google";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("Error in Google OAuth connect:", error);
+    logger.error("Error in Google OAuth connect", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Failed to initiate Google OAuth" },
       { status: 500 }

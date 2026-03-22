@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cleanupDuplicates } from '@/lib/cleanup-duplicates'
+import { logger } from '@/lib/logger'
 
 /**
  * Admin endpoint to cleanup duplicate managed blocks from both Google Calendar and database
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     // TODO: Add authentication check here
     // For now, this is admin-only and should be protected by environment/API key
 
-    console.log(`Starting cleanup for user ${userId}`)
+    logger.info('Starting cleanup', { userId })
     await cleanupDuplicates(userId)
 
     return NextResponse.json({
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       message: `Cleanup completed for user ${userId}`,
     })
   } catch (error) {
-    console.error('Cleanup failed:', error)
+    logger.error('Cleanup failed', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       {
         error: 'Cleanup failed',

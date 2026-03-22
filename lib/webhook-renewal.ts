@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
 import { serverEnv, publicEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 interface WebhookChannel {
   id: string
@@ -50,16 +51,16 @@ export async function checkAndRenewChannels(): Promise<{
     .eq('provider', 'google') // Only Google for now
 
   if (fetchError) {
-    console.error('Failed to fetch expiring webhook channels:', fetchError)
+    logger.error('Failed to fetch expiring webhook channels', { error: fetchError instanceof Error ? fetchError.message : String(fetchError) })
     throw fetchError
   }
 
   if (!expiringChannels || expiringChannels.length === 0) {
-    console.log('No webhook channels expiring within 24 hours')
+    logger.info('No webhook channels expiring within 24 hours')
     return { checked: 0, renewed: 0, failed: 0 }
   }
 
-  console.log(`Found ${expiringChannels.length} expiring webhook channels`)
+  logger.info('Found expiring webhook channels', { count: expiringChannels.length })
 
   let renewed = 0
   let failed = 0
@@ -69,7 +70,7 @@ export async function checkAndRenewChannels(): Promise<{
       await renewWebhookChannel(admin, channel as WebhookChannel)
       renewed++
     } catch (error) {
-      console.error(`Failed to renew webhook channel ${(channel as any).id}:`, error)
+      logger.error('Failed to renew webhook channel', { channelId: (channel as any).id, error: error instanceof Error ? error.message : String(error) })
       failed++
     }
   }
@@ -94,9 +95,7 @@ async function renewWebhookChannel(
     : channel.calendars
   const calendar = calendarsData as CalendarWithAccount
 
-  console.log(
-    `Renewing webhook channel ${channel.channel_id} for calendar ${calendar.provider_calendar_id}`
-  )
+  logger.info('Renewing webhook channel', { channelId: channel.channel_id, calendarId: calendar.provider_calendar_id })
 
   // Build provider from account credentials
   const accountsData = calendar.calendar_accounts as any
@@ -117,10 +116,10 @@ async function renewWebhookChannel(
       channel.channel_id,
       channel.resource_id
     )
-    console.log(`Stopped old watch ${channel.channel_id}`)
+    logger.info('Stopped old watch', { channelId: channel.channel_id })
   } catch (error) {
     // Log but continue - we want to set up new watch even if stop fails
-    console.warn(`Failed to stop old watch ${channel.channel_id}:`, error)
+    logger.warn('Failed to stop old watch', { channelId: channel.channel_id, error: error instanceof Error ? error.message : String(error) })
   }
 
   // Step 2: Set up a new watch
@@ -133,7 +132,7 @@ async function renewWebhookChannel(
     webhookUrl
   )
 
-  console.log(`Set up new watch with channel_id ${newWatch.id}`)
+  logger.info('Set up new watch', { channelId: newWatch.id })
 
   // Step 3: Update database with new channel info
   const { error: updateError } = await admin
@@ -146,9 +145,9 @@ async function renewWebhookChannel(
     .eq('id', channel.id)
 
   if (updateError) {
-    console.error('Failed to update webhook channel in database:', updateError)
+    logger.error('Failed to update webhook channel in database', { error: updateError instanceof Error ? updateError.message : String(updateError) })
     throw updateError
   }
 
-  console.log(`Updated webhook_channels record ${channel.id}`)
+  logger.info('Updated webhook_channels record', { recordId: channel.id })
 }

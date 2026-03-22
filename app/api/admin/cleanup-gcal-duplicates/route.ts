@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cleanupGoogleCalendarDuplicates } from '@/lib/cleanup-google-calendar'
+import { logger } from '@/lib/logger'
 
 /**
  * Admin endpoint to cleanup duplicate managed "Busy" events from Google Calendar
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Starting Google Calendar cleanup for user ${userId}`)
+    logger.info('Starting Google Calendar cleanup', { userId })
     const startTime = Date.now()
 
     await cleanupGoogleCalendarDuplicates(userId)
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       durationMs: duration,
     })
   } catch (error) {
-    console.error('Cleanup failed:', error)
+    logger.error('Cleanup failed', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       {
         error: 'Cleanup failed',

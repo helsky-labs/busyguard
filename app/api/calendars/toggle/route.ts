@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/logger'
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -49,7 +50,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', calendarId)
 
     if (updateError) {
-      console.error('Failed to update calendar:', updateError)
+      logger.error('Failed to update calendar', { error: updateError.message })
       return NextResponse.json(
         { error: 'Failed to update calendar' },
         { status: 500 }
@@ -58,7 +59,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, is_included })
   } catch (error) {
-    console.error('Error in toggle calendar:', error)
+    logger.error('Error in toggle calendar', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       { error: 'Failed to update calendar' },
       { status: 500 }

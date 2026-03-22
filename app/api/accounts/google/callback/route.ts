@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleCalendarProvider } from "@/lib/providers/google";
 import { createClient } from "@/lib/supabase/server";
 import { syncCalendars } from "@/lib/sync-engine";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (accountError) {
-      console.error("Failed to store calendar account:", accountError);
+      logger.error("Failed to store calendar account", { error: accountError.message });
       return NextResponse.json(
         { error: "Failed to store calendar account" },
         { status: 500 }
@@ -120,7 +121,7 @@ export async function GET(request: NextRequest) {
         .select();
 
       if (calendarsError) {
-        console.error("Failed to store calendars:", calendarsError);
+        logger.error("Failed to store calendars", { error: calendarsError.message });
         // Don't fail entirely if calendars can't be stored - account is created
       } else if (calendarsData) {
         insertedCalendars.push(...calendarsData);
@@ -155,10 +156,10 @@ export async function GET(request: NextRequest) {
             expiry: new Date(parseInt(watch.expiration)).toISOString(),
           });
         } catch (error) {
-          console.error(
-            `Failed to set up watch for calendar ${cal.provider_calendar_id}:`,
-            error
-          );
+          logger.error("Failed to set up watch for calendar", {
+            calendarId: cal.provider_calendar_id,
+            error: error instanceof Error ? error.message : String(error),
+          });
           // Continue with other calendars on error
         }
       }
@@ -166,7 +167,7 @@ export async function GET(request: NextRequest) {
 
     // Trigger initial sync (fire and forget - don't block redirect)
     syncCalendars(user.id).catch((error) => {
-      console.error("Error during initial sync:", error);
+      logger.error("Error during initial sync", { error: error instanceof Error ? error.message : String(error) });
     });
 
     // Redirect to dashboard/accounts page
@@ -174,7 +175,7 @@ export async function GET(request: NextRequest) {
       new URL("/dashboard/accounts?connected=google", request.url)
     );
   } catch (error) {
-    console.error("Error in Google OAuth callback:", error);
+    logger.error("Error in Google OAuth callback", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Failed to complete Google OAuth" },
       { status: 500 }

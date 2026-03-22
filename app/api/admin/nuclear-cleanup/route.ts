@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { nuclearCleanup } from '@/lib/cleanup-google-calendar'
+import { logger } from '@/lib/logger'
 
 /**
  * Admin endpoint for NUCLEAR cleanup - deletes ALL "Busy" and "(No title)" events
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🔴 NUCLEAR CLEANUP INITIATED for user ${userId}`)
+    logger.warn('NUCLEAR CLEANUP INITIATED', { userId })
     const startTime = Date.now()
 
     await nuclearCleanup(userId)
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
       durationMs: duration,
     })
   } catch (error) {
-    console.error('Nuclear cleanup failed:', error)
+    logger.error('Nuclear cleanup failed', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       {
         error: 'Nuclear cleanup failed',

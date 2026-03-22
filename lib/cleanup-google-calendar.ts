@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
 import { serverEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 /**
  * NUCLEAR OPTION: Delete ALL "Busy" and "(No title)" events from included calendars
@@ -9,7 +10,7 @@ import { serverEnv } from '@/lib/env'
 export async function nuclearCleanup(userId: string): Promise<void> {
   const admin = createAdminClient()
 
-  console.log('🔴 NUCLEAR CLEANUP: Deleting ALL "Busy" and "(No title)" events...')
+  logger.info('NUCLEAR CLEANUP: Deleting ALL "Busy" and "(No title)" events')
 
   // 1. Fetch only INCLUDED calendars
   const { data: calendars, error: calError } = await admin
@@ -22,12 +23,12 @@ export async function nuclearCleanup(userId: string): Promise<void> {
     .eq('is_included', true)
 
   if (calError) {
-    console.error('Failed to fetch calendars:', calError)
+    logger.error('Failed to fetch calendars', { error: calError instanceof Error ? calError.message : String(calError) })
     throw calError
   }
 
   if (!calendars || calendars.length === 0) {
-    console.log('No calendars found')
+    logger.info('No calendars found')
     return
   }
 
@@ -55,7 +56,7 @@ export async function nuclearCleanup(userId: string): Promise<void> {
 
   for (const cal of calendars) {
     try {
-      console.log(`\nProcessing calendar: ${cal.name}`)
+      logger.info('Processing calendar', { calendarName: cal.name })
 
       const provider = providerMap.get(cal.account_id)!
 
@@ -79,32 +80,30 @@ export async function nuclearCleanup(userId: string): Promise<void> {
         return false
       })
 
-      console.log(`Found ${toDelete.length} events to delete`)
+      logger.info('Found events to delete', { count: toDelete.length })
 
       for (const event of toDelete) {
         try {
           await provider.deleteEvent(cal.provider_calendar_id, event.id)
-          console.log(
-            `  ✓ Deleted: "${event.summary || '(No title)'}" at ${event.start.dateTime || event.start.date}`
-          )
+          logger.info('Deleted event', { summary: event.summary || '(No title)', start: event.start.dateTime || event.start.date })
           totalDeleted++
         } catch (error) {
           if ((error as any)?.code === 410) {
-            console.log(`  ✓ Already deleted`)
+            logger.info('Event already deleted')
           } else {
-            console.error(`  ✗ Failed to delete ${event.id}:`, error)
+            logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
           }
         }
       }
 
-      console.log(`Deleted ${toDelete.length} events from ${cal.name}`)
+      logger.info('Deleted events from calendar', { count: toDelete.length, calendarName: cal.name })
     } catch (error) {
-      console.error(`Error processing calendar ${cal.name}:`, error)
+      logger.error('Error processing calendar', { calendarName: cal.name, error: error instanceof Error ? error.message : String(error) })
     }
   }
 
-  console.log(`\n🔴 NUCLEAR CLEANUP COMPLETE! Deleted ${totalDeleted} events`)
-  console.log('Next sync will recreate all events cleanly.')
+  logger.info('NUCLEAR CLEANUP COMPLETE', { deletedEvents: totalDeleted })
+  logger.info('Next sync will recreate all events cleanly')
 }
 
 /**
@@ -114,7 +113,7 @@ export async function nuclearCleanup(userId: string): Promise<void> {
 export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<void> {
   const admin = createAdminClient()
 
-  console.log('Starting aggressive Google Calendar duplicate cleanup...')
+  logger.info('Starting aggressive Google Calendar duplicate cleanup')
 
   // 1. Fetch only INCLUDED calendars (ones actively synced)
   const { data: calendars, error: calError } = await admin
@@ -127,12 +126,12 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
     .eq('is_included', true)
 
   if (calError) {
-    console.error('Failed to fetch calendars:', calError)
+    logger.error('Failed to fetch calendars', { error: calError instanceof Error ? calError.message : String(calError) })
     throw calError
   }
 
   if (!calendars || calendars.length === 0) {
-    console.log('No calendars found')
+    logger.info('No calendars found')
     return
   }
 
@@ -160,7 +159,7 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
 
   for (const cal of calendars) {
     try {
-      console.log(`\nProcessing calendar: ${cal.name}`)
+      logger.info('Processing calendar', { calendarName: cal.name })
 
       const provider = providerMap.get(cal.account_id)!
 
@@ -178,15 +177,15 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
           e.description?.includes('Managed by BusyGuard')
       )
 
-      console.log(`Found ${busyEvents.length} "Busy" or managed events`)
+      logger.info('Found busy or managed events', { count: busyEvents.length })
       if (busyEvents.length > 0) {
-        console.log(`  Sample events:`)
-        busyEvents.slice(0, 5).forEach((e, i) => {
-          const start = e.start.dateTime || e.start.date
-          console.log(
-            `    ${i + 1}. "${e.summary || '(No title)'}" at ${start}, sourceId: ${e.extendedProperties?.private?.sourceEventId || 'none'}`
-          )
-        })
+        const sampleEvents = busyEvents.slice(0, 5).map((e, i) => ({
+          index: i + 1,
+          summary: e.summary || '(No title)',
+          start: e.start.dateTime || e.start.date,
+          sourceId: e.extendedProperties?.private?.sourceEventId || 'none',
+        }))
+        logger.info('Sample events', { sampleEvents })
       }
 
       // Group by sourceEventId if available, otherwise by time slot
@@ -218,20 +217,18 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
       // Delete "(No title)" events (completely invalid)
       let deletedForThisCalendar = 0
       const noTitleEvents = busyEvents.filter((e) => !e.summary || e.summary === '(No title)')
-      console.log(`  ${noTitleEvents.length} "(No title)" events to delete`)
+      logger.info('No title events to delete', { count: noTitleEvents.length })
       for (const event of noTitleEvents) {
         try {
           await provider.deleteEvent(cal.provider_calendar_id, event.id)
-          console.log(
-            `    Deleted "(No title)" event: ${event.start.dateTime || event.start.date}`
-          )
+          logger.info('Deleted (No title) event', { start: event.start.dateTime || event.start.date })
           deletedForThisCalendar++
           totalDeleted++
         } catch (error) {
           if ((error as any)?.code === 410) {
-            console.log(`    Event already deleted`)
+            logger.info('Event already deleted')
           } else {
-            console.error(`    Failed to delete event ${event.id}:`, error)
+            logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
           }
         }
       }
@@ -244,20 +241,18 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
           !e.extendedProperties?.private?.sourceEventId &&
           !e.description?.includes('Managed by BusyGuard')
       )
-      console.log(`  ${oldUntrackedEvents.length} old untracked "Busy" events to delete`)
+      logger.info('Old untracked Busy events to delete', { count: oldUntrackedEvents.length })
       for (const event of oldUntrackedEvents) {
         try {
           await provider.deleteEvent(cal.provider_calendar_id, event.id)
-          console.log(
-            `    Deleted untracked "Busy" event: ${event.start.dateTime || event.start.date}`
-          )
+          logger.info('Deleted untracked Busy event', { start: event.start.dateTime || event.start.date })
           deletedForThisCalendar++
           totalDeleted++
         } catch (error) {
           if ((error as any)?.code === 410) {
-            console.log(`    Event already deleted`)
+            logger.info('Event already deleted')
           } else {
-            console.error(`    Failed to delete event ${event.id}:`, error)
+            logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
           }
         }
       }
@@ -265,36 +260,32 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
       // Delete duplicates (multiple at same time slot)
       for (const [groupKey, dupeEvents] of grouped.entries()) {
         if (dupeEvents.length > 1) {
-          console.log(
-            `  Found ${dupeEvents.length} duplicate events: ${groupKey}`
-          )
+          logger.info('Found duplicate events', { count: dupeEvents.length, groupKey })
 
           // Keep the first one, delete the rest
           const toDelete = dupeEvents.slice(1)
           for (const event of toDelete) {
             try {
               await provider.deleteEvent(cal.provider_calendar_id, event.id)
-              console.log(
-                `    Deleted duplicate event: ${event.summary || '(No title)'} ${event.start.dateTime || event.start.date}`
-              )
+              logger.info('Deleted duplicate event', { summary: event.summary || '(No title)', start: event.start.dateTime || event.start.date })
               deletedForThisCalendar++
               totalDeleted++
             } catch (error) {
               if ((error as any)?.code === 410) {
-                console.log(`    Event already deleted`)
+                logger.info('Event already deleted')
               } else {
-                console.error(`    Failed to delete event ${event.id}:`, error)
+                logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
               }
             }
           }
         }
       }
 
-      console.log(`Deleted ${deletedForThisCalendar} events from ${cal.name}`)
+      logger.info('Deleted events from calendar', { count: deletedForThisCalendar, calendarName: cal.name })
     } catch (error) {
-      console.error(`Error processing calendar ${cal.name}:`, error)
+      logger.error('Error processing calendar', { calendarName: cal.name, error: error instanceof Error ? error.message : String(error) })
     }
   }
 
-  console.log(`\n✅ Cleanup complete! Deleted ${totalDeleted} duplicate events from Google Calendar`)
+  logger.info('Cleanup complete', { deletedEvents: totalDeleted })
 }

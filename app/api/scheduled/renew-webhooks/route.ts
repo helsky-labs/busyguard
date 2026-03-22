@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAndRenewChannels } from '@/lib/webhook-renewal'
 import { serverEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 /**
  * Scheduled endpoint to renew expiring webhook channels.
@@ -25,15 +26,15 @@ export async function GET(request: NextRequest) {
     const isAuthorized = authHeader === expectedAuth
 
     if (!isVercelCron && !isAuthorized) {
-      console.warn('Unauthorized webhook renewal request')
+      logger.warn('Unauthorized webhook renewal request')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('Starting webhook channel renewal check')
+    logger.info('Starting webhook channel renewal check')
 
     const result = await checkAndRenewChannels()
 
-    console.log('Webhook renewal completed:', result)
+    logger.info('Webhook renewal completed', { result })
 
     return NextResponse.json({
       success: true,
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       ...result,
     })
   } catch (error) {
-    console.error('Error in webhook renewal endpoint:', error)
+    logger.error('Error in webhook renewal endpoint', { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       {
         success: false,
