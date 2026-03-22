@@ -43,7 +43,10 @@ export const serverEnv = {
 /** Public environment variables (available in browser) */
 export const publicEnv = {
   get APP_URL() {
-    return process.env.NEXT_PUBLIC_APP_URL ?? ''
+    if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL
+    if (vercelUrl) return `https://${vercelUrl.replace(/^https?:\/\//, '')}`
+    return ''
   },
   get APP_NAME() {
     return process.env.NEXT_PUBLIC_APP_NAME ?? 'BusyGuard'
