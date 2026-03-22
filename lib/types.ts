@@ -13,11 +13,15 @@ export interface CalendarAccount {
 export interface Calendar {
   id: string
   account_id: string
+  user_id: string
+  provider_calendar_id: string
   google_id?: string
   microsoft_id?: string
   name: string
   description: string | null
   is_included: boolean
+  color: string | null
+  last_sync_at: string | null
   last_sync_time: string | null
   next_sync_time: string | null
   sync_status: 'idle' | 'syncing' | 'error'
