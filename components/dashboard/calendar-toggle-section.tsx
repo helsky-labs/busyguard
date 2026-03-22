@@ -103,8 +103,9 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex-1">
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label htmlFor={`cal-${calendar.id}`} className="flex items-center gap-3 cursor-pointer">
                         <input
+                          id={`cal-${calendar.id}`}
                           type="checkbox"
                           checked={calendar.is_included}
                           onChange={() => handleToggle(calendar.id, calendar.is_included)}
@@ -126,15 +127,15 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
 
                     <div className="ml-4 flex items-center gap-2">
                       {calendar.sync_status === 'error' && (
-                        <span title={calendar.sync_error || 'Sync error'} className="text-red-500">
+                        <span title={calendar.sync_error || 'Sync error'} aria-label="Sync error" role="img" className="text-red-500">
                           ⚠️
                         </span>
                       )}
                       {calendar.sync_status === 'syncing' && (
-                        <span className="text-yellow-500">⟳</span>
+                        <span aria-label="Syncing" role="img" className="text-yellow-500">⟳</span>
                       )}
                       {calendar.sync_status === 'idle' && calendar.is_included && (
-                        <span className="text-green-500">✓</span>
+                        <span aria-label="Synced" role="img" className="text-green-500">✓</span>
                       )}
                       {toggling === calendar.id && (
                         <span className="text-gray-500 text-sm">Updating...</span>

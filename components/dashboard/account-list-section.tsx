@@ -98,6 +98,7 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
             <button
               onClick={() => handleDisconnect(account.id)}
               disabled={disconnecting === account.id}
+              aria-label={`Disconnect ${account.display_name || account.email}`}
               className="ml-4 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
