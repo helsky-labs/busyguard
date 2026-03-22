@@ -124,6 +124,7 @@ export async function syncCalendars(userId: string): Promise<void> {
 
 /**
  * Create or update a busy block on target calendar
+ * IDEMPOTENT: Safe to call multiple times for the same event
  */
 async function createOrUpdateBusyBlock(
   admin: ReturnType<typeof createAdminClient>,
@@ -132,31 +133,31 @@ async function createOrUpdateBusyBlock(
   event: any,
   providerMap: Map<string, GoogleCalendarProvider>
 ): Promise<void> {
-  // Check if block already exists in database
-  const { data: existing, error: existingError } = await admin
-    .from('managed_busy_blocks')
-    .select('*')
-    .eq('source_event_id', event.id)
-    .eq('source_calendar_id', sourceCalendar.id)
-    .eq('target_calendar_id', targetCalendar.id)
-    .maybeSingle()
-
-  if (existingError) {
-    console.error('Error checking existing busy block:', existingError)
-    return
-  }
-
   const busyStart = event.start.dateTime || event.start.date
   const busyEnd = event.end.dateTime || event.end.date
+  const targetProvider = providerMap.get(targetCalendar.account_id)!
 
   try {
+    // 1. Check database first (source of truth)
+    const { data: existing, error: existingError } = await admin
+      .from('managed_busy_blocks')
+      .select('*')
+      .eq('source_event_id', event.id)
+      .eq('source_calendar_id', sourceCalendar.id)
+      .eq('target_calendar_id', targetCalendar.id)
+      .maybeSingle()
+
+    if (existingError) {
+      console.error('Error checking existing busy block:', existingError)
+      return
+    }
+
+    // 2. If DB record exists, update Google Calendar if times changed
     if (existing) {
-      // Update if times changed
       if (
         existing.event_start !== busyStart ||
         existing.event_end !== busyEnd
       ) {
-        const targetProvider = providerMap.get(targetCalendar.account_id)!
         await targetProvider.updateEvent(
           targetCalendar.provider_calendar_id,
           existing.busy_event_id,
@@ -166,7 +167,7 @@ async function createOrUpdateBusyBlock(
           }
         )
 
-        // Update DB
+        // Update DB record
         await admin
           .from('managed_busy_blocks')
           .update({
@@ -175,78 +176,73 @@ async function createOrUpdateBusyBlock(
           })
           .eq('id', existing.id)
       }
+      return
+    }
+
+    // 3. No DB record exists. Check Google Calendar for orphaned events
+    // (events created by us but no DB record - e.g., from a previous crash)
+    // Only check events in the relevant time range for performance
+    const orphanedEvent = await findOrphanedEvent(
+      targetProvider,
+      targetCalendar.provider_calendar_id,
+      event.id,
+      busyStart,
+      busyEnd
+    )
+
+    let busyEventId: string
+
+    if (orphanedEvent) {
+      // Event exists on Google Calendar but not in DB - reuse it and log it
+      busyEventId = orphanedEvent.id
+      console.log(
+        `Found orphaned busy event ${busyEventId} for source ${event.id}, reusing it`
+      )
     } else {
-      // Before creating, check Google Calendar to prevent duplicates in concurrent syncs
-      const targetProvider = providerMap.get(targetCalendar.account_id)!
-      const allEvents = await targetProvider.listEvents(
-        targetCalendar.provider_calendar_id
-      )
-
-      // Find event with our tracking ID
-      const existingCalendarEvent = allEvents.find(
-        (e) =>
-          e.extendedProperties?.private?.busyguard === 'managed' &&
-          e.extendedProperties?.private?.sourceEventId === event.id
-      )
-
-      let busyEventId: string
-
-      if (existingCalendarEvent) {
-        // Event already exists, just update if needed
-        busyEventId = existingCalendarEvent.id
-        if (
-          existingCalendarEvent.start?.dateTime !== busyStart ||
-          existingCalendarEvent.end?.dateTime !== busyEnd ||
-          existingCalendarEvent.start?.date !== busyStart ||
-          existingCalendarEvent.end?.date !== busyEnd
-        ) {
-          await targetProvider.updateEvent(
-            targetCalendar.provider_calendar_id,
-            busyEventId,
-            {
-              start: event.start.dateTime ? { dateTime: busyStart } : { date: busyStart },
-              end: event.end.dateTime ? { dateTime: busyEnd } : { date: busyEnd },
-            }
-          )
-        }
-      } else {
-        // Create new event
-        const created = await targetProvider.createEvent(
-          targetCalendar.provider_calendar_id,
-          {
-            summary: 'Busy',
-            start: event.start.dateTime
-              ? { dateTime: busyStart, timeZone: event.start.timeZone }
-              : { date: busyStart },
-            end: event.end.dateTime
-              ? { dateTime: busyEnd, timeZone: event.end.timeZone }
-              : { date: busyEnd },
-            extendedProperties: {
-              private: {
-                busyguard: 'managed',
-                sourceEventId: event.id,
-              },
+      // Create new event
+      const created = await targetProvider.createEvent(
+        targetCalendar.provider_calendar_id,
+        {
+          summary: 'Busy',
+          start: event.start.dateTime
+            ? { dateTime: busyStart, timeZone: event.start.timeZone }
+            : { date: busyStart },
+          end: event.end.dateTime
+            ? { dateTime: busyEnd, timeZone: event.end.timeZone }
+            : { date: busyEnd },
+          extendedProperties: {
+            private: {
+              busyguard: 'managed',
+              sourceEventId: event.id,
             },
-            transparency: 'opaque',
-          }
+          },
+          transparency: 'opaque',
+          description: 'Managed by BusyGuard',
+        }
+      )
+      busyEventId = created.id
+    }
+
+    // 4. Insert DB record (should always succeed, unless race condition)
+    // If it fails with 23505, another sync created it - that's OK
+    const { error: insertError } = await admin.from('managed_busy_blocks').insert({
+      user_id: sourceCalendar.user_id,
+      source_event_id: event.id,
+      source_calendar_id: sourceCalendar.id,
+      busy_event_id: busyEventId,
+      target_calendar_id: targetCalendar.id,
+      event_start: busyStart,
+      event_end: busyEnd,
+    })
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        // Race condition: another sync created this record between our check and insert
+        // This is harmless - the other sync's event ID is in the DB
+        console.log(
+          `Race condition for ${event.id} on ${targetCalendar.name}: DB record already exists`
         )
-        busyEventId = created.id
-      }
-
-      // Try to insert record. If it fails due to unique constraint (race condition),
-      // it means another sync already created the record - that's fine.
-      const { error: insertError } = await admin.from('managed_busy_blocks').insert({
-        user_id: sourceCalendar.user_id,
-        source_event_id: event.id,
-        source_calendar_id: sourceCalendar.id,
-        busy_event_id: busyEventId,
-        target_calendar_id: targetCalendar.id,
-        event_start: busyStart,
-        event_end: busyEnd,
-      })
-
-      if (insertError && insertError.code !== '23505') {
-        // Only log non-race-condition errors
+      } else {
         console.error('Unexpected error inserting busy block:', insertError)
       }
     }
@@ -255,6 +251,53 @@ async function createOrUpdateBusyBlock(
       `Error creating/updating busy block from ${sourceCalendar.name} to ${targetCalendar.name}:`,
       error
     )
+  }
+}
+
+/**
+ * Find an orphaned managed event on Google Calendar for this source event
+ * Only checks events within the date range for performance
+ */
+async function findOrphanedEvent(
+  provider: GoogleCalendarProvider,
+  calendarId: string,
+  sourceEventId: string,
+  busyStart: string,
+  busyEnd: string
+): Promise<any> {
+  try {
+    // Calculate a reasonable search window around the event times
+    // For all-day events, expand the range; for timed events, be tighter
+    const isAllDay = !busyStart.includes('T')
+    const searchStart = new Date(busyStart)
+    const searchEnd = new Date(busyEnd)
+
+    if (isAllDay) {
+      // For all-day events, search 1 day before and after
+      searchStart.setDate(searchStart.getDate() - 1)
+      searchEnd.setDate(searchEnd.getDate() + 1)
+    } else {
+      // For timed events, search 1 hour before and after
+      searchStart.setHours(searchStart.getHours() - 1)
+      searchEnd.setHours(searchEnd.getHours() + 1)
+    }
+
+    const timeMin = searchStart.toISOString()
+    const timeMax = searchEnd.toISOString()
+
+    const events = await provider.listEvents(calendarId, timeMin, timeMax)
+
+    // Find our managed event with this sourceEventId
+    const orphaned = events.find(
+      (e) =>
+        e.extendedProperties?.private?.busyguard === 'managed' &&
+        e.extendedProperties?.private?.sourceEventId === sourceEventId
+    )
+
+    return orphaned
+  } catch (error) {
+    console.error(`Error searching for orphaned event:`, error)
+    return null
   }
 }
 
