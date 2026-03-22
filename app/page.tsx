@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-surface">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
+      <nav className="flex items-center justify-between px-4 sm:px-6 py-4 max-w-5xl mx-auto">
         <span className="font-display font-bold text-xl text-gray-900">BusyGuard</span>
         <div className="flex items-center gap-4">
           <Link href="/auth/login" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">

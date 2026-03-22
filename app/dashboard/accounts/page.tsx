@@ -208,18 +208,18 @@ export default function AccountsPage() {
               return (
                 <Card key={account.id}>
                   {/* Account header */}
-                  <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
-                    <div>
+                  <div className="px-4 sm:px-6 py-4 flex items-start sm:items-center justify-between gap-3 border-b border-gray-100">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2.5">
-                        <span className={`h-2.5 w-2.5 rounded-full ${providerColors[account.provider] || 'bg-gray-400'}`} />
-                        <p className="font-medium text-gray-900">
+                        <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${providerColors[account.provider] || 'bg-gray-400'}`} />
+                        <p className="font-medium text-gray-900 truncate">
                           {account.display_name || account.email}
                         </p>
                         <Badge variant="default">
                           {account.provider === 'google' ? 'Google' : 'Outlook'}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-500 ml-5 mt-0.5">{account.email}</p>
+                      <p className="text-sm text-gray-500 ml-5 mt-0.5 truncate">{account.email}</p>
                       <p className="text-xs text-gray-400 ml-5 mt-0.5">
                         Connected {new Date(account.created_at).toLocaleDateString()}
                       </p>
@@ -229,7 +229,7 @@ export default function AccountsPage() {
                       size="sm"
                       onClick={() => setConfirmId(account.id)}
                       loading={disconnecting === account.id}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
                     >
                       {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
                     </Button>

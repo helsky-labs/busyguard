@@ -18,7 +18,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-[rgb(var(--bg-page))]">
       <Navbar userEmail={user.email || ''} />
-      <div className="flex max-w-6xl mx-auto px-6">
+      <div className="flex max-w-6xl mx-auto px-4 sm:px-6">
         <div className="hidden md:block">
           <Sidebar />
         </div>
