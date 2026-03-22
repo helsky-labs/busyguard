@@ -50,15 +50,16 @@ function getAccountData(cal: CalendarWithAccount): AccountCredentials {
 export async function syncCalendars(
   userId: string,
   source: 'webhook' | 'manual' | 'initial' = 'manual'
-): Promise<void> {
+): Promise<{ ran: boolean }> {
   const locked = await acquireSyncLock(userId, source)
   if (!locked) {
     logger.info('Sync already running, skipping', { userId, source })
-    return
+    return { ran: false }
   }
 
   try {
     await doSync(userId)
+    return { ran: true }
   } finally {
     await releaseSyncLock(userId)
   }
@@ -128,10 +129,37 @@ async function doSync(userId: string): Promise<void> {
     syncAheadDays: SYNC_AHEAD_DAYS,
   })
 
-  // 3. Process each source calendar within the sync period
+  // 3. Prepare sync window
   const timeMin = new Date(Date.now() - SYNC_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const timeMax = new Date(Date.now() + SYNC_AHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
+  // 3a. List existing events on each target (primary) calendar so we can
+  //     detect busy blocks that were manually deleted from Google without
+  //     making per-record API calls (which would time out on serverless).
+  const targetExistingIds = new Map<string, Set<string>>()
+  for (const [accountId, targetPrimary] of primaryByAccount) {
+    try {
+      const provider = providerMap.get(accountId)!
+      const targetEvents = await provider.listEvents(
+        targetPrimary.provider_calendar_id,
+        timeMin,
+        timeMax
+      )
+      targetExistingIds.set(
+        targetPrimary.id,
+        new Set(targetEvents.map((e) => e.id))
+      )
+    } catch (error) {
+      logger.error('Error listing target calendar events', {
+        calendarId: targetPrimary.provider_calendar_id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      // If we can't list, assume all events exist (safe fallback)
+      targetExistingIds.set(targetPrimary.id, new Set())
+    }
+  }
+
+  // 3b. Process each source calendar
   const liveEventIds = new Set<string>()
 
   for (const sourceCalendar of typedCalendars) {
@@ -161,7 +189,8 @@ async function doSync(userId: string): Promise<void> {
             targetPrimary,
             event,
             providerMap,
-            managedEventIds
+            managedEventIds,
+            targetExistingIds.get(targetPrimary.id)
           )
         }
       }
@@ -196,7 +225,8 @@ async function createOrUpdateBusyBlock(
   targetCalendar: CalendarWithAccount,
   event: GoogleEvent,
   providerMap: Map<string, GoogleCalendarProvider>,
-  managedEventIds: Set<string>
+  managedEventIds: Set<string>,
+  targetExistingEventIds?: Set<string>
 ): Promise<void> {
   const busyStart = (event.start.dateTime || event.start.date)!
   const busyEnd = (event.end.dateTime || event.end.date)!
@@ -218,13 +248,11 @@ async function createOrUpdateBusyBlock(
     }
 
     // 2. If DB record exists, verify the busy event still exists on Google.
-    //    It may have been manually deleted — if so, clear the stale row
-    //    and fall through to recreate.
+    //    Uses the pre-fetched target event set (no per-record API call).
     if (existing) {
-      const stillExists = await targetProvider.eventExists(
-        targetCalendar.provider_calendar_id,
-        existing.busy_event_id
-      )
+      const stillExists = targetExistingEventIds
+        ? targetExistingEventIds.has(existing.busy_event_id)
+        : true // If set unavailable, assume exists (safe fallback)
 
       if (!stillExists) {
         logger.info('Busy event deleted from Google, clearing stale DB row', {

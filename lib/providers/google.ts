@@ -247,28 +247,6 @@ export class GoogleCalendarProvider {
   }
 
   /**
-   * Check whether an event still exists on Google Calendar.
-   * Returns false on 404/410 (deleted), true otherwise.
-   */
-  async eventExists(calendarId: string, eventId: string): Promise<boolean> {
-    try {
-      await this.calendar.events.get({
-        auth: this.oauth2Client,
-        calendarId,
-        eventId,
-        fields: 'id',
-      });
-      return true;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('404') || msg.includes('410') || msg.includes('Not Found') || msg.includes('Gone')) {
-        return false;
-      }
-      throw error;
-    }
-  }
-
-  /**
    * Delete an event from a specific calendar
    */
   async deleteEvent(calendarId: string, eventId: string): Promise<void> {

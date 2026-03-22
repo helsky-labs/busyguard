@@ -19,9 +19,17 @@ export async function POST() {
     logger.info('Manual sync triggered by user', { userId: user.id })
     const startTime = Date.now()
 
-    await syncCalendars(user.id, 'manual')
+    const result = await syncCalendars(user.id, 'manual')
 
     const duration = Date.now() - startTime
+
+    if (!result.ran) {
+      return NextResponse.json(
+        { error: 'Sync already in progress, try again in a moment' },
+        { status: 409 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
       durationMs: duration,
