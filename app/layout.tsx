@@ -7,10 +7,10 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: {
-    default: 'Your SaaS Name',
-    template: '%s | Your SaaS Name',
+    default: 'BusyGuard',
+    template: '%s | BusyGuard',
   },
-  description: 'Your SaaS description',
+  description: 'Keep your calendars in sync. BusyGuard blocks time across all your calendars so you never double-book.',
 }
 
 export default function RootLayout({

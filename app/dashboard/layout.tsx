@@ -21,7 +21,7 @@ export default async function DashboardLayout({
       <nav className="bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between max-w-6xl mx-auto">
           <Link href="/dashboard" className="font-bold text-xl">
-            YourSaaS
+            BusyGuard
           </Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">{user.email}</span>

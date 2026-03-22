@@ -5,7 +5,7 @@ export default function Home() {
     <main className="min-h-screen">
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 border-b">
-        <span className="font-bold text-xl">YourSaaS</span>
+        <span className="font-bold text-xl">BusyGuard</span>
         <div className="flex gap-4">
           <Link href="/auth/login" className="text-gray-600 hover:text-black">
             Login
@@ -22,10 +22,10 @@ export default function Home() {
       {/* Hero */}
       <section className="flex flex-col items-center justify-center px-4 py-24 text-center">
         <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-          Your Product Headline
+          Never double-book again
         </h1>
         <p className="mt-6 max-w-2xl text-lg text-gray-600">
-          Explain what your product does and why people should care.
+          BusyGuard syncs your calendars and blocks time automatically. Connect Google Calendar, and busy blocks appear everywhere they need to.
         </p>
         <Link
           href="/auth/signup"
@@ -47,9 +47,9 @@ export default function Home() {
                 $9<span className="text-lg text-gray-500">/mo</span>
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-600">
-                <li>Feature one</li>
-                <li>Feature two</li>
-                <li>Feature three</li>
+                <li>Unlimited calendars</li>
+                <li>Real-time sync via webhooks</li>
+                <li>Multi-account support</li>
               </ul>
               <Link
                 href="/auth/signup?plan=monthly"
