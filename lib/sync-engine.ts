@@ -217,12 +217,13 @@ async function createOrUpdateBusyBlock(
       return
     }
 
-    // 2. If DB record exists, update Google Calendar if times changed
+    // 2. If DB record exists, update Google Calendar if times changed.
+    //    Compare as epoch ms to avoid false positives from format
+    //    differences (e.g. ".000Z" vs "Z", offset vs UTC).
     if (existing) {
-      if (
-        existing.event_start !== busyStart ||
-        existing.event_end !== busyEnd
-      ) {
+      const startChanged = new Date(existing.event_start).getTime() !== new Date(busyStart).getTime()
+      const endChanged = new Date(existing.event_end).getTime() !== new Date(busyEnd).getTime()
+      if (startChanged || endChanged) {
         await targetProvider.updateEvent(
           targetCalendar.provider_calendar_id,
           existing.busy_event_id,

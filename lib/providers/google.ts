@@ -215,7 +215,8 @@ export class GoogleCalendarProvider {
   }
 
   /**
-   * Update an event in a specific calendar
+   * Update an event in a specific calendar.
+   * Uses PATCH (not PUT) so only supplied fields are modified.
    */
   async updateEvent(
     calendarId: string,
@@ -223,7 +224,7 @@ export class GoogleCalendarProvider {
     event: Partial<GoogleEvent>
   ): Promise<GoogleEvent> {
     try {
-      const response = await this.calendar.events.update({
+      const response = await this.calendar.events.patch({
         auth: this.oauth2Client,
         calendarId,
         eventId,
