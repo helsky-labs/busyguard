@@ -62,7 +62,7 @@ export class GoogleCalendarProvider {
   /**
    * Get the OAuth2 authorization URL for user consent
    */
-  getAuthUrl(): string {
+  getAuthUrl(state?: string): string {
     return this.oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: [
@@ -72,6 +72,7 @@ export class GoogleCalendarProvider {
         "https://www.googleapis.com/auth/userinfo.profile",
       ],
       prompt: "consent", // Force consent screen on every auth to get refresh token
+      ...(state && { state }),
     });
   }
 

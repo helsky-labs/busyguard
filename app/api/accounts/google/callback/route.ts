@@ -3,11 +3,13 @@ import { GoogleCalendarProvider } from "@/lib/providers/google";
 import { createClient } from "@/lib/supabase/server";
 import { syncCalendars } from "@/lib/sync-engine";
 import { logger } from "@/lib/logger";
+import { serverEnv, publicEnv } from "@/lib/env";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get("code");
+    const returnedState = searchParams.get("state");
     const error = searchParams.get("error");
 
     if (error) {
@@ -24,15 +26,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-    const webhookToken = process.env.GOOGLE_WEBHOOK_TOKEN;
-
-    if (!clientId || !clientSecret || !redirectUri || !webhookToken) {
+    // Validate CSRF state
+    const storedState = request.cookies.get("google_oauth_state")?.value;
+    if (!storedState || !returnedState || storedState !== returnedState) {
+      logger.warn("OAuth state mismatch", {
+        hasStoredState: !!storedState,
+        hasReturnedState: !!returnedState,
+      });
       return NextResponse.json(
-        { error: "Google OAuth credentials not configured" },
-        { status: 500 }
+        { error: "Invalid OAuth state — possible CSRF attack" },
+        { status: 403 }
       );
     }
 
@@ -48,9 +51,9 @@ export async function GET(request: NextRequest) {
 
     // Exchange code for tokens
     const provider = new GoogleCalendarProvider(
-      clientId!,
-      clientSecret!,
-      redirectUri!,
+      serverEnv.GOOGLE_CLIENT_ID,
+      serverEnv.GOOGLE_CLIENT_SECRET,
+      serverEnv.GOOGLE_REDIRECT_URI,
       "" // Will set after token exchange
     );
 
@@ -65,9 +68,9 @@ export async function GET(request: NextRequest) {
 
     // Create a new provider with the obtained tokens
     const authenticatedProvider = new GoogleCalendarProvider(
-      clientId!,
-      clientSecret!,
-      redirectUri!,
+      serverEnv.GOOGLE_CLIENT_ID,
+      serverEnv.GOOGLE_CLIENT_SECRET,
+      serverEnv.GOOGLE_REDIRECT_URI,
       tokens.access_token,
       tokens.refresh_token ?? undefined
     );
@@ -95,7 +98,9 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (accountError) {
-      logger.error("Failed to store calendar account", { error: accountError.message });
+      logger.error("Failed to store calendar account", {
+        error: accountError.message,
+      });
       return NextResponse.json(
         { error: "Failed to store calendar account" },
         { status: 500 }
@@ -121,7 +126,9 @@ export async function GET(request: NextRequest) {
         .select();
 
       if (calendarsError) {
-        logger.error("Failed to store calendars", { error: calendarsError.message });
+        logger.error("Failed to store calendars", {
+          error: calendarsError.message,
+        });
         // Don't fail entirely if calendars can't be stored - account is created
       } else if (calendarsData) {
         insertedCalendars.push(...calendarsData);
@@ -129,14 +136,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Set up watches for included calendars
-    let appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!appUrl) {
-      const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL;
-      appUrl = vercelUrl ? `https://${vercelUrl.replace(/^https?:\/\//, '')}` : undefined;
-    }
-    const webhookUrl = `${appUrl}/api/webhooks/google`;
+    const webhookUrl = `${publicEnv.APP_URL}/api/webhooks/google`;
+    const webhookToken = serverEnv.GOOGLE_WEBHOOK_TOKEN;
 
-    if (webhookToken && insertedCalendars.length > 0) {
+    if (insertedCalendars.length > 0) {
       for (const cal of insertedCalendars) {
         if (!cal.is_included) continue;
 
@@ -155,27 +158,36 @@ export async function GET(request: NextRequest) {
             resource_id: watch.resourceId,
             expiry: new Date(parseInt(watch.expiration)).toISOString(),
           });
-        } catch (error) {
+        } catch (watchError) {
           logger.error("Failed to set up watch for calendar", {
             calendarId: cal.provider_calendar_id,
-            error: error instanceof Error ? error.message : String(error),
+            error:
+              watchError instanceof Error
+                ? watchError.message
+                : String(watchError),
           });
-          // Continue with other calendars on error
         }
       }
     }
 
     // Trigger initial sync (fire and forget - don't block redirect)
-    syncCalendars(user.id).catch((error) => {
-      logger.error("Error during initial sync", { error: error instanceof Error ? error.message : String(error) });
+    syncCalendars(user.id).catch((syncError) => {
+      logger.error("Error during initial sync", {
+        error:
+          syncError instanceof Error ? syncError.message : String(syncError),
+      });
     });
 
-    // Redirect to dashboard/accounts page
-    return NextResponse.redirect(
+    // Clear OAuth state cookie and redirect
+    const redirectResponse = NextResponse.redirect(
       new URL("/dashboard/accounts?connected=google", request.url)
     );
+    redirectResponse.cookies.delete("google_oauth_state");
+    return redirectResponse;
   } catch (error) {
-    logger.error("Error in Google OAuth callback", { error: error instanceof Error ? error.message : String(error) });
+    logger.error("Error in Google OAuth callback", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to complete Google OAuth" },
       { status: 500 }
