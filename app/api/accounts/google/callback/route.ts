@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleCalendarProvider } from "@/lib/providers/google";
 import { createClient } from "@/lib/supabase/server";
-import { syncCalendars } from "@/lib/sync-engine";
 import { logger } from "@/lib/logger";
 import { serverEnv, publicEnv } from "@/lib/env";
 
@@ -170,13 +169,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Trigger initial sync (fire and forget - don't block redirect)
-    syncCalendars(user.id).catch((syncError) => {
-      logger.error("Error during initial sync", {
-        error:
-          syncError instanceof Error ? syncError.message : String(syncError),
-      });
-    });
+    // Initial sync will be triggered by the webhook watch notification
+    // or by the user hitting the manual sync endpoint.
+    // Fire-and-forget doesn't work on Vercel — the function gets killed
+    // after sending the redirect, leaving orphaned sync locks.
 
     // Clear OAuth state cookie and redirect
     const redirectResponse = NextResponse.redirect(

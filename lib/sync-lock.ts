@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/logger'
 
-const LOCK_TTL_MINUTES = 5
+const LOCK_TTL_MINUTES = 1
 
 /**
  * Attempt to acquire a per-user sync lock.
