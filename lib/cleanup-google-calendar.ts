@@ -64,10 +64,19 @@ export async function nuclearCleanup(userId: string): Promise<void> {
 
       const events = await provider.listEvents(cal.provider_calendar_id, timeMin, timeMax)
 
-      // Find ALL "Busy" and "(No title)" events
-      const toDelete = events.filter(
-        (e) => e.summary === 'Busy' || !e.summary || e.summary === '(No title)'
-      )
+      // Find ALL "Busy" and "(No title)" events (very aggressive)
+      const toDelete = events.filter((e) => {
+        // Delete if "Busy"
+        if (e.summary === 'Busy') return true
+        // Delete if no summary (renders as "(No title)")
+        if (!e.summary || e.summary?.trim() === '') return true
+        // Delete if literally says "(No title)"
+        if (e.summary === '(No title)') return true
+        // Delete if it's one of our managed events
+        if (e.description?.includes('Managed by BusyGuard')) return true
+        if (e.extendedProperties?.private?.busyguard === 'managed') return true
+        return false
+      })
 
       console.log(`Found ${toDelete.length} events to delete`)
 
