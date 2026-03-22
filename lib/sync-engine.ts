@@ -169,8 +169,8 @@ async function createOrUpdateBusyBlock(
   event: GoogleEvent,
   providerMap: Map<string, GoogleCalendarProvider>
 ): Promise<void> {
-  const busyStart = event.start.dateTime || event.start.date
-  const busyEnd = event.end.dateTime || event.end.date
+  const busyStart = (event.start.dateTime || event.start.date)!
+  const busyEnd = (event.end.dateTime || event.end.date)!
   const targetProvider = providerMap.get(targetCalendar.account_id)!
 
   try {
@@ -235,10 +235,10 @@ async function createOrUpdateBusyBlock(
         {
           summary: 'Busy',
           start: event.start.dateTime
-            ? { dateTime: busyStart, timeZone: event.start.timeZone }
+            ? { dateTime: busyStart, timeZone: event.start.timeZone ?? undefined }
             : { date: busyStart },
           end: event.end.dateTime
-            ? { dateTime: busyEnd, timeZone: event.end.timeZone }
+            ? { dateTime: busyEnd, timeZone: event.end.timeZone ?? undefined }
             : { date: busyEnd },
           extendedProperties: {
             private: {
@@ -344,7 +344,8 @@ async function cleanupOrphanedBlocks(
   for (const block of allBlocks || []) {
     if (!liveEventIds.has(block.source_event_id)) {
       try {
-        const targetCal = block.calendars as { account_id: string; provider_calendar_id: string }
+        const calData = block.calendars as unknown as { account_id: string; provider_calendar_id: string } | { account_id: string; provider_calendar_id: string }[]
+        const targetCal = Array.isArray(calData) ? calData[0] : calData
         const provider = providerMap.get(targetCal.account_id)!
         await provider.deleteEvent(
           targetCal.provider_calendar_id,

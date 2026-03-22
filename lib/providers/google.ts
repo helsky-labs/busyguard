@@ -187,7 +187,7 @@ export class GoogleCalendarProvider {
         description: response.data.description,
         start: response.data.start!,
         end: response.data.end!,
-        extendedProperties: response.data.extendedProperties,
+        extendedProperties: response.data.extendedProperties as ExtendedProperties | undefined,
         iCalUID: response.data.iCalUID,
       };
     } catch (error) {
@@ -218,7 +218,7 @@ export class GoogleCalendarProvider {
         description: response.data.description,
         start: response.data.start!,
         end: response.data.end!,
-        extendedProperties: response.data.extendedProperties,
+        extendedProperties: response.data.extendedProperties as ExtendedProperties | undefined,
         iCalUID: response.data.iCalUID,
       };
     } catch (error) {
