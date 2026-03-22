@@ -84,7 +84,7 @@ export async function nuclearCleanup(userId: string): Promise<void> {
           logger.info('Deleted event', { summary: event.summary || '(No title)', start: event.start.dateTime || event.start.date })
           totalDeleted++
         } catch (error) {
-          if ((error as any)?.code === 410) {
+          if ((error as { code?: number })?.code === 410) {
             logger.info('Event already deleted')
           } else {
             logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
@@ -218,7 +218,7 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
           deletedForThisCalendar++
           totalDeleted++
         } catch (error) {
-          if ((error as any)?.code === 410) {
+          if ((error as { code?: number })?.code === 410) {
             logger.info('Event already deleted')
           } else {
             logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
@@ -242,7 +242,7 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
           deletedForThisCalendar++
           totalDeleted++
         } catch (error) {
-          if ((error as any)?.code === 410) {
+          if ((error as { code?: number })?.code === 410) {
             logger.info('Event already deleted')
           } else {
             logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })
@@ -264,7 +264,7 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
               deletedForThisCalendar++
               totalDeleted++
             } catch (error) {
-              if ((error as any)?.code === 410) {
+              if ((error as { code?: number })?.code === 410) {
                 logger.info('Event already deleted')
               } else {
                 logger.error('Failed to delete event', { eventId: event.id, error: error instanceof Error ? error.message : String(error) })

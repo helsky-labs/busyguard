@@ -69,7 +69,7 @@ export async function checkAndRenewChannels(): Promise<{
       await renewWebhookChannel(admin, channel as WebhookChannel)
       renewed++
     } catch (error) {
-      logger.error('Failed to renew webhook channel', { channelId: (channel as any).id, error: error instanceof Error ? error.message : String(error) })
+      logger.error('Failed to renew webhook channel', { channelId: (channel as WebhookChannel).id, error: error instanceof Error ? error.message : String(error) })
       failed++
     }
   }
