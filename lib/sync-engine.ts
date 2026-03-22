@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider, type GoogleEvent } from '@/lib/providers/google'
 import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { acquireSyncLock, releaseSyncLock } from '@/lib/sync-lock'
 import type { CalendarAccountCredentials } from '@/lib/types'
 
 interface CalendarWithAccount {
@@ -15,21 +16,49 @@ interface CalendarWithAccount {
   calendar_accounts: CalendarAccountCredentials | CalendarAccountCredentials[]
 }
 
-interface ManagedBusyBlock {
-  id: string
-  source_event_id: string
-  source_calendar_id: string
-  busy_event_id: string
-  target_calendar_id: string
-  event_start: string
-  event_end: string
+/**
+ * Layer 1+2: Detect if an event is one we manage (loop prevention).
+ * Layer 1: Extended properties (works when Google returns them).
+ * Layer 2: Content markers (works even if extended properties stripped).
+ */
+export function isManagedEvent(event: GoogleEvent): boolean {
+  // Layer 1: Extended properties
+  if (event.extendedProperties?.private?.busyguard === 'managed') return true
+  // Layer 2: Summary + description pattern
+  if (event.summary === 'Busy' && event.description?.includes('[BusyGuard]')) return true
+  return false
 }
 
 /**
- * Main sync engine: creates and manages busy blocks across calendars
- * Runs as admin (bypasses RLS) since it's not triggered within a user session
+ * Main sync engine: creates and manages busy blocks across calendars.
+ * Runs as admin (bypasses RLS) since it's not triggered within a user session.
+ *
+ * Loop prevention layers:
+ *   1. Extended properties filter (extendedProperties.private.busyguard)
+ *   2. Content markers filter (summary=Busy + description contains [BusyGuard])
+ *   3. DB reverse lookup (event ID in managed_busy_blocks.busy_event_id)
+ *   4. Per-user sync lock (prevents concurrent syncs)
+ *   5. Description marker on created events (gives Layer 2 something to match)
  */
-export async function syncCalendars(userId: string): Promise<void> {
+export async function syncCalendars(
+  userId: string,
+  source: 'webhook' | 'manual' | 'initial' = 'manual'
+): Promise<void> {
+  // Layer 4: Sync lock
+  const locked = await acquireSyncLock(userId, source)
+  if (!locked) {
+    logger.info('Sync already running, skipping', { userId, source })
+    return
+  }
+
+  try {
+    await doSync(userId)
+  } finally {
+    await releaseSyncLock(userId)
+  }
+}
+
+async function doSync(userId: string): Promise<void> {
   const admin = createAdminClient()
 
   // 1. Fetch all included calendars with their account credentials
@@ -56,28 +85,28 @@ export async function syncCalendars(userId: string): Promise<void> {
 
   // 2. Build provider map: account_id → GoogleCalendarProvider
   const providerMap = new Map<string, GoogleCalendarProvider>()
-  const accountMap = new Map<string, CalendarWithAccount[]>()
 
   for (const cal of typedCalendars) {
-    const accountId = cal.account_id
-    if (!providerMap.has(accountId)) {
-      // Supabase nested select returns the relation, potentially as an array
+    if (!providerMap.has(cal.account_id)) {
       const accountData = Array.isArray(cal.calendar_accounts)
         ? cal.calendar_accounts[0]
         : cal.calendar_accounts
-      const provider = buildProvider(accountData)
-      providerMap.set(accountId, provider)
+      providerMap.set(cal.account_id, buildProvider(accountData))
     }
-
-    if (!accountMap.has(accountId)) {
-      accountMap.set(accountId, [])
-    }
-    accountMap.get(accountId)!.push(cal)
   }
 
+  // Layer 3: DB reverse lookup — build set of all busy_event_ids we manage
+  const { data: managedEventRows } = await admin
+    .from('managed_busy_blocks')
+    .select('busy_event_id')
+    .eq('user_id', userId)
+  const managedEventIds = new Set(
+    managedEventRows?.map((r) => r.busy_event_id) ?? []
+  )
+
   // 3. Process each source calendar
-  const timeMin = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() // -3 days
-  const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() // +90 days
+  const timeMin = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+  const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
 
   const liveEventIds = new Set<string>()
 
@@ -90,13 +119,12 @@ export async function syncCalendars(userId: string): Promise<void> {
         timeMax
       )
 
-      // Filter out events we created (loop prevention)
-      const realEvents = events.filter(
-        (e) => e.extendedProperties?.private?.busyguard !== 'managed'
-      )
+      for (const event of events) {
+        // Layer 1+2: Extended properties + content marker filter
+        if (isManagedEvent(event)) continue
+        // Layer 3: DB reverse lookup — this event IS a busy block we created
+        if (managedEventIds.has(event.id)) continue
 
-      // Process each real event
-      for (const event of realEvents) {
         liveEventIds.add(event.id)
 
         // Create busy blocks on all other calendars
@@ -117,17 +145,23 @@ export async function syncCalendars(userId: string): Promise<void> {
         calendarId: sourceCalendar.provider_calendar_id,
         error: error instanceof Error ? error.message : String(error),
       })
-      // Continue with other calendars on error
     }
   }
 
   // 4. Cleanup orphaned blocks
   await cleanupOrphanedBlocks(admin, userId, liveEventIds, providerMap)
+
+  // 5. Update last_sync_at on all included calendars
+  const calendarIds = typedCalendars.map((c) => c.id)
+  await admin
+    .from('calendars')
+    .update({ last_sync_at: new Date().toISOString() })
+    .in('id', calendarIds)
 }
 
 /**
- * Create or update a busy block on target calendar
- * IDEMPOTENT: Safe to call multiple times for the same event
+ * Create or update a busy block on target calendar.
+ * IDEMPOTENT: Safe to call multiple times for the same event.
  */
 async function createOrUpdateBusyBlock(
   admin: ReturnType<typeof createAdminClient>,
@@ -170,21 +204,15 @@ async function createOrUpdateBusyBlock(
           }
         )
 
-        // Update DB record
         await admin
           .from('managed_busy_blocks')
-          .update({
-            event_start: busyStart,
-            event_end: busyEnd,
-          })
+          .update({ event_start: busyStart, event_end: busyEnd })
           .eq('id', existing.id)
       }
       return
     }
 
-    // 3. No DB record exists. Check Google Calendar for orphaned events
-    // (events created by us but no DB record - e.g., from a previous crash)
-    // Only check events in the relevant time range for performance
+    // 3. Check for orphaned events on Google Calendar
     const orphanedEvent = await findOrphanedEvent(
       targetProvider,
       targetCalendar.provider_calendar_id,
@@ -196,14 +224,13 @@ async function createOrUpdateBusyBlock(
     let busyEventId: string
 
     if (orphanedEvent) {
-      // Event exists on Google Calendar but not in DB - reuse it and log it
       busyEventId = orphanedEvent.id
       logger.info('Found orphaned busy event, reusing', {
         busyEventId,
         sourceEventId: event.id,
       })
     } else {
-      // Create new event
+      // Layer 5: Description marker — gives Layer 2 something to match
       const created = await targetProvider.createEvent(
         targetCalendar.provider_calendar_id,
         {
@@ -221,14 +248,13 @@ async function createOrUpdateBusyBlock(
             },
           },
           transparency: 'opaque',
-          description: 'Managed by BusyGuard',
+          description: '[BusyGuard] Managed by BusyGuard — do not edit',
         }
       )
       busyEventId = created.id
     }
 
-    // 4. Insert DB record (should always succeed, unless race condition)
-    // If it fails with 23505, another sync created it - that's OK
+    // 4. Insert DB record
     const { error: insertError } = await admin.from('managed_busy_blocks').insert({
       user_id: sourceCalendar.user_id,
       source_event_id: event.id,
@@ -241,8 +267,6 @@ async function createOrUpdateBusyBlock(
 
     if (insertError) {
       if (insertError.code === '23505') {
-        // Race condition: another sync created this record between our check and insert
-        // This is harmless - the other sync's event ID is in the DB
         logger.info('Race condition: DB record already exists', {
           sourceEventId: event.id,
           targetCalendar: targetCalendar.name,
@@ -260,10 +284,6 @@ async function createOrUpdateBusyBlock(
   }
 }
 
-/**
- * Find an orphaned managed event on Google Calendar for this source event
- * Only checks events within the date range for performance
- */
 async function findOrphanedEvent(
   provider: GoogleCalendarProvider,
   calendarId: string,
@@ -272,35 +292,29 @@ async function findOrphanedEvent(
   busyEnd: string
 ): Promise<GoogleEvent | null> {
   try {
-    // Calculate a reasonable search window around the event times
-    // For all-day events, expand the range; for timed events, be tighter
     const isAllDay = !busyStart.includes('T')
     const searchStart = new Date(busyStart)
     const searchEnd = new Date(busyEnd)
 
     if (isAllDay) {
-      // For all-day events, search 1 day before and after
       searchStart.setDate(searchStart.getDate() - 1)
       searchEnd.setDate(searchEnd.getDate() + 1)
     } else {
-      // For timed events, search 1 hour before and after
       searchStart.setHours(searchStart.getHours() - 1)
       searchEnd.setHours(searchEnd.getHours() + 1)
     }
 
-    const timeMin = searchStart.toISOString()
-    const timeMax = searchEnd.toISOString()
+    const events = await provider.listEvents(
+      calendarId,
+      searchStart.toISOString(),
+      searchEnd.toISOString()
+    )
 
-    const events = await provider.listEvents(calendarId, timeMin, timeMax)
-
-    // Find our managed event with this sourceEventId
-    const orphaned = events.find(
+    return events.find(
       (e) =>
         e.extendedProperties?.private?.busyguard === 'managed' &&
         e.extendedProperties?.private?.sourceEventId === sourceEventId
-    )
-
-    return orphaned ?? null
+    ) ?? null
   } catch (error) {
     logger.error('Error searching for orphaned event', {
       error: error instanceof Error ? error.message : String(error),
@@ -309,16 +323,12 @@ async function findOrphanedEvent(
   }
 }
 
-/**
- * Delete busy blocks whose source events no longer exist
- */
 async function cleanupOrphanedBlocks(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   liveEventIds: Set<string>,
   providerMap: Map<string, GoogleCalendarProvider>
 ): Promise<void> {
-  // Get all managed blocks for user
   const { data: allBlocks, error: blocksError } = await admin
     .from('managed_busy_blocks')
     .select(
@@ -335,14 +345,13 @@ async function cleanupOrphanedBlocks(
   for (const block of allBlocks || []) {
     if (!liveEventIds.has(block.source_event_id)) {
       try {
-        const targetCal = (block.calendars as any)
+        const targetCal = block.calendars as { account_id: string; provider_calendar_id: string }
         const provider = providerMap.get(targetCal.account_id)!
         await provider.deleteEvent(
           targetCal.provider_calendar_id,
           block.busy_event_id
         )
 
-        // Delete from DB
         await admin.from('managed_busy_blocks').delete().eq('id', block.id)
       } catch (error) {
         logger.error('Error cleaning up block', {
@@ -354,11 +363,8 @@ async function cleanupOrphanedBlocks(
   }
 }
 
-/**
- * Helper: build a provider from account credentials
- */
 function buildProvider(
-  account: { access_token: string; refresh_token?: string | null }
+  account: CalendarAccountCredentials
 ): GoogleCalendarProvider {
   return new GoogleCalendarProvider(
     serverEnv.GOOGLE_CLIENT_ID,
