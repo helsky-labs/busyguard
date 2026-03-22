@@ -2,11 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Check, AlertTriangle, RefreshCw } from 'lucide-react'
 import type { Calendar, CalendarAccount } from '@/lib/types'
+import { Card, CardContent } from '@/components/ui/card'
+import { Toggle } from '@/components/ui/toggle'
+import { Alert } from '@/components/ui/alert'
 
 interface CalendarToggleSectionProps {
   calendars: Calendar[]
   accounts: CalendarAccount[]
+}
+
+const providerColors: Record<string, string> = {
+  google: 'bg-blue-500',
+  microsoft: 'bg-gray-400',
 }
 
 export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSectionProps) {
@@ -54,23 +63,21 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
 
   if (calendars.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <p className="text-gray-600">No calendars found. Connect an account to get started.</p>
-      </div>
+      <Card className="text-center">
+        <CardContent className="py-8">
+          <p className="text-gray-500">No calendars found. Connect an account to get started.</p>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-gray-900">Select Calendars to Sync</h2>
+    <div className="space-y-4">
+      <h2 className="font-display font-semibold text-gray-900">Select Calendars to Sync</h2>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {Object.entries(calendarsByAccount).map(([accountId, accountCalendars]) => {
           const account = accountMap.get(accountId)
           if (!account) return null
@@ -78,73 +85,73 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
           const enabledCount = accountCalendars.filter((c) => c.is_included).length
 
           return (
-            <div
-              key={accountId}
-              className="bg-white rounded-lg border border-gray-200 p-6"
-            >
-              <div className="flex items-center gap-2 mb-4 pb-4 border-b">
-                <span className="text-lg">
-                  {account.provider === 'google' ? '🔵' : '⚪'}
-                </span>
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">
-                    {account.display_name || account.email}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-0.5">
-                    {enabledCount} of {accountCalendars.length} calendars enabled
-                  </p>
+            <Card key={accountId}>
+              <CardContent>
+                <div className="flex items-center gap-2.5 mb-4 pb-4 border-b border-gray-100">
+                  <span className={`h-2.5 w-2.5 rounded-full ${providerColors[account.provider] || 'bg-gray-400'}`} />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-sm">
+                      {account.display_name || account.email}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {enabledCount} of {accountCalendars.length} calendars enabled
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                {accountCalendars.map((calendar) => (
-                  <div
-                    key={calendar.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <label htmlFor={`cal-${calendar.id}`} className="flex items-center gap-3 cursor-pointer">
-                        <input
+                <div className="space-y-2">
+                  {accountCalendars.map((calendar) => (
+                    <div
+                      key={calendar.id}
+                      className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors -mx-1"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Toggle
                           id={`cal-${calendar.id}`}
-                          type="checkbox"
                           checked={calendar.is_included}
                           onChange={() => handleToggle(calendar.id, calendar.is_included)}
                           disabled={toggling === calendar.id}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 text-sm truncate">
                             {calendar.name}
                           </p>
                           {calendar.description && (
-                            <p className="text-xs text-gray-600 mt-0.5">
+                            <p className="text-xs text-gray-400 mt-0.5 truncate">
                               {calendar.description}
                             </p>
                           )}
                         </div>
-                      </label>
-                    </div>
+                      </div>
 
-                    <div className="ml-4 flex items-center gap-2">
-                      {calendar.sync_status === 'error' && (
-                        <span title={calendar.sync_error || 'Sync error'} aria-label="Sync error" role="img" className="text-red-500">
-                          ⚠️
-                        </span>
-                      )}
-                      {calendar.sync_status === 'syncing' && (
-                        <span aria-label="Syncing" role="img" className="text-yellow-500">⟳</span>
-                      )}
-                      {calendar.sync_status === 'idle' && calendar.is_included && (
-                        <span aria-label="Synced" role="img" className="text-green-500">✓</span>
-                      )}
-                      {toggling === calendar.id && (
-                        <span className="text-gray-500 text-sm">Updating...</span>
-                      )}
+                      <div className="ml-3 flex items-center gap-2 shrink-0">
+                        {calendar.sync_status === 'error' && (
+                          <AlertTriangle
+                            className="h-4 w-4 text-amber-500"
+                            aria-label="Sync error"
+                          />
+                        )}
+                        {calendar.sync_status === 'syncing' && (
+                          <RefreshCw
+                            className="h-4 w-4 text-primary-500 animate-spin"
+                            aria-label="Syncing"
+                          />
+                        )}
+                        {calendar.sync_status === 'idle' && calendar.is_included && (
+                          <Check
+                            className="h-4 w-4 text-green-500"
+                            aria-label="Synced"
+                          />
+                        )}
+                        {toggling === calendar.id && (
+                          <span className="text-gray-400 text-xs">Updating...</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )
         })}
       </div>

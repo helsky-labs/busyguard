@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { Users, CalendarDays, Shield } from 'lucide-react'
 import type { Calendar, CalendarAccount } from '@/lib/types'
+import { Card, CardContent } from '@/components/ui/card'
 import { SyncStatusCard } from '@/components/dashboard/sync-status-card'
 import { AccountListSection } from '@/components/dashboard/account-list-section'
 import { CalendarToggleSection } from '@/components/dashboard/calendar-toggle-section'
@@ -16,7 +18,6 @@ export default async function DashboardPage() {
     redirect('/auth/login')
   }
 
-  // Fetch accounts
   const { data: accountsData } = await supabase
     .from('calendar_accounts')
     .select('id, provider, email, display_name, created_at, updated_at, user_id, access_token, refresh_token')
@@ -25,7 +26,6 @@ export default async function DashboardPage() {
 
   const accounts = (accountsData || []) as CalendarAccount[]
 
-  // Fetch calendars and busy block counts
   let calendars: Calendar[] = []
   let busyBlockCounts: Record<string, number> = {}
 
@@ -46,7 +46,6 @@ export default async function DashboardPage() {
 
     calendars = (calendarsResult.data || []) as Calendar[]
 
-    // Count blocks per target calendar
     if (blocksResult.data) {
       for (const row of blocksResult.data) {
         const id = row.target_calendar_id
@@ -56,42 +55,45 @@ export default async function DashboardPage() {
   }
 
   const totalBlocks = Object.values(busyBlockCounts).reduce((sum, n) => sum + n, 0)
+  const enabledCalendars = calendars.filter((c) => c.is_included).length
+
+  const stats = [
+    { label: 'Connected Accounts', value: accounts.length, icon: Users },
+    { label: 'Calendars', value: calendars.length, sub: `${enabledCalendars} enabled`, icon: CalendarDays },
+    { label: 'Active Busy Blocks', value: totalBlocks, sub: `across ${Object.keys(busyBlockCounts).length} calendars`, icon: Shield },
+  ]
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">
+        <h1 className="font-display text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-500 mt-1 text-sm">
           Manage your calendar accounts and choose which calendars to sync
         </p>
       </div>
 
-      {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Connected Accounts</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{accounts.length}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Calendars</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{calendars.length}</p>
-          <p className="text-xs text-gray-500 mt-1">
-            {calendars.filter((c) => c.is_included).length} enabled
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-600">Active Busy Blocks</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{totalBlocks}</p>
-          <p className="text-xs text-gray-500 mt-1">
-            across {Object.keys(busyBlockCounts).length} calendars
-          </p>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {stats.map(({ label, value, sub, icon: Icon }) => (
+          <Card key={label} className="hover:shadow-sm">
+            <CardContent className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+                <Icon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">{label}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
+                {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left column: Accounts and Calendar selection */}
+        {/* Left column */}
         <div className="lg:col-span-2 space-y-8">
           <AccountListSection accounts={accounts} />
           {calendars.length > 0 && (
@@ -99,41 +101,36 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* Right column: Status and actions */}
+        {/* Right column */}
         <div className="space-y-6">
           {calendars.length > 0 && (
             <SyncStatusCard calendars={calendars} busyBlockCounts={busyBlockCounts} />
           )}
           <ConnectAccountCard />
-          <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-            <p className="text-sm font-semibold text-blue-900 mb-2">How it works</p>
-            <ul className="text-xs text-blue-800 space-y-1">
-              <li>• Connect your calendar accounts</li>
-              <li>• Select which calendars to sync</li>
-              <li>• We'll continuously sync your events</li>
-              <li>• Toggle calendars anytime</li>
-            </ul>
-          </div>
         </div>
       </div>
 
       {/* Empty State */}
       {accounts.length === 0 && (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-12 text-center">
-          <p className="text-3xl mb-4">📅</p>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Get started with BusyGuard
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Connect your Google or Outlook calendar to sync your events
-          </p>
-          <a
-            href="/dashboard/accounts"
-            className="inline-block px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Connect your first account
-          </a>
-        </div>
+        <Card className="text-center">
+          <CardContent className="py-12">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary-50 text-primary-600 mb-4">
+              <CalendarDays className="h-7 w-7" />
+            </div>
+            <h2 className="font-display text-xl font-bold text-gray-900 mb-2">
+              Get started with BusyGuard
+            </h2>
+            <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+              Connect your Google or Outlook calendar to sync your events
+            </p>
+            <a
+              href="/dashboard/accounts"
+              className="inline-flex items-center px-5 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors shadow-xs"
+            >
+              Connect your first account
+            </a>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 export function BillingSection() {
   const [loading, setLoading] = useState(false)
@@ -44,37 +46,45 @@ export function BillingSection() {
     <div className="mt-4">
       {hasSubscription ? (
         <div>
-          <p className="text-sm text-gray-600">
-            You're on the <strong>Pro</strong> plan.
-          </p>
-          <button
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-gray-600">Current plan:</p>
+            <Badge variant="primary">Pro</Badge>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleManageBilling}
-            disabled={loading}
-            className="mt-4 px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            loading={loading}
+            className="mt-4"
           >
-            {loading ? 'Loading...' : 'Manage Billing'}
-          </button>
+            Manage Billing
+          </Button>
         </div>
       ) : (
         <div>
-          <p className="text-sm text-gray-600">
-            You're on the free plan. Upgrade to unlock all features.
+          <div className="flex items-center gap-2 mb-4">
+            <p className="text-sm text-gray-600">Current plan:</p>
+            <Badge variant="default">Free</Badge>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Upgrade to unlock all features.
           </p>
-          <div className="mt-4 flex gap-2">
-            <button
+          <div className="flex gap-2">
+            <Button
               onClick={() => handleUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_MONTHLY!)}
-              disabled={loading}
-              className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+              loading={loading}
+              size="sm"
             >
-              Upgrade Monthly ($9/mo)
-            </button>
-            <button
+              Monthly ($9/mo)
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => handleUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_YEARLY!)}
-              disabled={loading}
-              className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              loading={loading}
+              size="sm"
             >
-              Upgrade Yearly ($84/yr)
-            </button>
+              Yearly ($84/yr)
+            </Button>
           </div>
         </div>
       )}

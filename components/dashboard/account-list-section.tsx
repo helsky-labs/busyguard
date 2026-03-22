@@ -3,23 +3,32 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Plus } from 'lucide-react'
 import type { CalendarAccount } from '@/lib/types'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert } from '@/components/ui/alert'
+import { Dialog, DialogFooter } from '@/components/ui/dialog'
 
 interface AccountListSectionProps {
   accounts: CalendarAccount[]
   onDisconnect?: (accountId: string) => Promise<void>
 }
 
+const providerColors: Record<string, string> = {
+  google: 'bg-blue-500',
+  microsoft: 'bg-gray-400',
+}
+
 export function AccountListSection({ accounts, onDisconnect }: AccountListSectionProps) {
   const router = useRouter()
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   const handleDisconnect = async (accountId: string) => {
-    if (!confirm('Are you sure you want to disconnect this account? All associated calendars will be removed.')) {
-      return
-    }
-
+    setConfirmId(null)
     setDisconnecting(accountId)
     setError(null)
 
@@ -47,74 +56,94 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
     }
   }
 
+  const confirmAccount = accounts.find((a) => a.id === confirmId)
+
   if (accounts.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <p className="text-gray-600 mb-4">No accounts connected yet.</p>
-        <Link
-          href="/dashboard/accounts"
-          className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Connect your first account
-        </Link>
-      </div>
+      <Card className="text-center">
+        <CardContent className="py-8">
+          <p className="text-gray-500 mb-4">No accounts connected yet.</p>
+          <Link
+            href="/dashboard/accounts"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            Connect your first account
+          </Link>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900">Connected Accounts</h2>
+      <h2 className="font-display font-semibold text-gray-900">Connected Accounts</h2>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div className="space-y-3">
         {accounts.map((account) => (
-          <div
+          <Card
             key={account.id}
-            className="bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
+            className="hover:shadow-sm transition-shadow"
           >
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">
-                  {account.provider === 'google' ? '🔵' : '⚪'}
-                </span>
-                <p className="font-semibold text-gray-900">
-                  {account.display_name || account.email}
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className={`h-2.5 w-2.5 rounded-full ${providerColors[account.provider] || 'bg-gray-400'}`} />
+                  <p className="font-medium text-gray-900">
+                    {account.display_name || account.email}
+                  </p>
+                  <Badge variant="default">
+                    {account.provider === 'google' ? 'Google' : 'Outlook'}
+                  </Badge>
+                </div>
+                <p className="text-sm text-gray-500 ml-5">{account.email}</p>
+                <p className="text-xs text-gray-400 ml-5 mt-0.5">
+                  Connected {new Date(account.created_at).toLocaleDateString()}
                 </p>
-                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                  {account.provider === 'google' ? 'Google' : 'Outlook'}
-                </span>
               </div>
-              <p className="text-sm text-gray-600">{account.email}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Connected {new Date(account.created_at).toLocaleDateString()}
-              </p>
-            </div>
 
-            <button
-              onClick={() => handleDisconnect(account.id)}
-              disabled={disconnecting === account.id}
-              aria-label={`Disconnect ${account.display_name || account.email}`}
-              className="ml-4 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
-            </button>
-          </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmId(account.id)}
+                loading={disconnecting === account.id}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4"
+                aria-label={`Disconnect ${account.display_name || account.email}`}
+              >
+                {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
+              </Button>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      <div className="pt-2">
+      <div className="pt-1">
         <Link
           href="/dashboard/accounts"
-          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors"
         >
-          Add another account →
+          <Plus className="h-3.5 w-3.5" />
+          Add another account
         </Link>
       </div>
+
+      <Dialog
+        open={!!confirmId}
+        onClose={() => setConfirmId(null)}
+        title="Disconnect account?"
+        description={confirmAccount ? `This will remove "${confirmAccount.display_name || confirmAccount.email}" and all its calendars.` : undefined}
+      >
+        <DialogFooter>
+          <Button variant="secondary" size="sm" onClick={() => setConfirmId(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" size="sm" onClick={() => confirmId && handleDisconnect(confirmId)}>
+            Disconnect
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }
