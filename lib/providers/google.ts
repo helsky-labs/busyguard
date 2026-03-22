@@ -181,13 +181,30 @@ export class GoogleCalendarProvider {
         },
       });
 
+      const eventId = response.data.id!;
+
+      // Google Workspace may strip fields on insert — patch them back
+      if (!response.data.summary || !response.data.extendedProperties) {
+        await this.calendar.events.patch({
+          auth: this.oauth2Client,
+          calendarId,
+          eventId,
+          requestBody: {
+            summary: event.summary,
+            description: event.description,
+            transparency: event.transparency,
+            extendedProperties: event.extendedProperties,
+          },
+        });
+      }
+
       return {
-        id: response.data.id!,
-        summary: response.data.summary!,
-        description: response.data.description,
+        id: eventId,
+        summary: event.summary,
+        description: event.description,
         start: response.data.start!,
         end: response.data.end!,
-        extendedProperties: response.data.extendedProperties as ExtendedProperties | undefined,
+        extendedProperties: event.extendedProperties as ExtendedProperties | undefined,
         iCalUID: response.data.iCalUID,
       };
     } catch (error) {
