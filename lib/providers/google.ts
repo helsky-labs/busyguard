@@ -183,13 +183,14 @@ export class GoogleCalendarProvider {
 
       const eventId = response.data.id!;
 
-      // Google Workspace may strip fields on insert — patch them back
+      // Google may strip fields on insert — use update (PUT) to set them
       if (!response.data.summary || !response.data.extendedProperties) {
-        await this.calendar.events.patch({
+        await this.calendar.events.update({
           auth: this.oauth2Client,
           calendarId,
           eventId,
           requestBody: {
+            ...response.data,
             summary: event.summary,
             description: event.description,
             transparency: event.transparency,
