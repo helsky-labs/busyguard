@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { syncCalendars } from '@/lib/sync-engine'
 import { logger } from '@/lib/logger'
+import { validateAdminAuth } from '@/lib/auth/admin-guard'
 
 /**
  * Admin endpoint to manually trigger calendar sync
  * POST /api/admin/sync?userId=<user_id>
  */
 export async function POST(request: NextRequest) {
+  const auth = validateAdminAuth(request)
+  if (!auth.valid) return auth.response
+
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -18,7 +22,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Add authentication check here
     logger.info('Starting sync', { userId })
     const startTime = Date.now()
 

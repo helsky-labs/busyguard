@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cleanupDuplicates } from '@/lib/cleanup-duplicates'
 import { logger } from '@/lib/logger'
+import { validateAdminAuth } from '@/lib/auth/admin-guard'
 
 /**
  * Admin endpoint to cleanup duplicate managed blocks from both Google Calendar and database
  * POST /api/admin/cleanup-duplicates?userId=<user_id>
  */
 export async function POST(request: NextRequest) {
+  const auth = validateAdminAuth(request)
+  if (!auth.valid) return auth.response
+
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -17,9 +21,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    // TODO: Add authentication check here
-    // For now, this is admin-only and should be protected by environment/API key
 
     logger.info('Starting cleanup', { userId })
     await cleanupDuplicates(userId)

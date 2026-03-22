@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { nuclearCleanup } from '@/lib/cleanup-google-calendar'
 import { logger } from '@/lib/logger'
+import { validateAdminAuth } from '@/lib/auth/admin-guard'
 
 /**
  * Admin endpoint for NUCLEAR cleanup - deletes ALL "Busy" and "(No title)" events
@@ -9,6 +10,9 @@ import { logger } from '@/lib/logger'
  * WARNING: This is destructive. Next sync will recreate events cleanly from scratch.
  */
 export async function POST(request: NextRequest) {
+  const auth = validateAdminAuth(request)
+  if (!auth.valid) return auth.response
+
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
