@@ -51,11 +51,16 @@ const config: Config = {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        'slide-in-left': {
+          '0%': { opacity: '0', transform: 'translateX(-100%)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
       },
       animation: {
         'skeleton-pulse': 'skeleton-pulse 2s ease-in-out infinite',
         'slide-in': 'slide-in 0.2s ease-out',
         'fade-in': 'fade-in 0.15s ease-out',
+        'slide-in-left': 'slide-in-left 0.2s ease-out',
       },
     },
   },

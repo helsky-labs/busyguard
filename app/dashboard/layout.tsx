@@ -19,7 +19,9 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-[rgb(var(--bg-page))]">
       <Navbar userEmail={user.email || ''} />
       <div className="flex max-w-6xl mx-auto px-6">
-        <Sidebar />
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
         <main className="flex-1 py-6 min-w-0">{children}</main>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Link2, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const navItems = [
+export const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/accounts', label: 'Accounts', icon: Link2 },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
