@@ -2,17 +2,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider, createGoogleProvider, type GoogleEvent } from '@/lib/providers/google'
 import { logger } from '@/lib/logger'
 import { acquireSyncLock, releaseSyncLock } from '@/lib/sync-lock'
-import type { CalendarAccountCredentials } from '@/lib/types'
+// CalendarAccountCredentials replaced by local AccountCredentials (adds email)
 
 /**
- * How far ahead (in days) to sync events. Controls the maximum number of
- * busy blocks created per calendar pair. Configurable via env var.
- *
- * 14 days = ~10-20 busy blocks per pair (typical meeting density).
- * Increasing this linearly increases the number of managed events.
+ * How far ahead (in days) to sync events. Configurable via env var.
+ * Default: 2 days (today + tomorrow). Keep this tight to minimise
+ * managed events and reduce duplicate risk.
  */
-const SYNC_AHEAD_DAYS = parseInt(process.env.BUSYGUARD_SYNC_AHEAD_DAYS || '14', 10)
-const SYNC_LOOKBACK_DAYS = 3
+const SYNC_AHEAD_DAYS = parseInt(process.env.BUSYGUARD_SYNC_AHEAD_DAYS || '2', 10)
+const SYNC_LOOKBACK_DAYS = 1
+
+interface AccountCredentials {
+  access_token: string
+  refresh_token?: string | null
+  email: string
+}
 
 interface CalendarWithAccount {
   id: string
@@ -22,7 +26,13 @@ interface CalendarWithAccount {
   name: string
   is_included: boolean
   color?: string
-  calendar_accounts: CalendarAccountCredentials | CalendarAccountCredentials[]
+  calendar_accounts: AccountCredentials | AccountCredentials[]
+}
+
+function getAccountData(cal: CalendarWithAccount): AccountCredentials {
+  return Array.isArray(cal.calendar_accounts)
+    ? cal.calendar_accounts[0]
+    : cal.calendar_accounts
 }
 
 /**
@@ -57,12 +67,12 @@ export async function syncCalendars(
 async function doSync(userId: string): Promise<void> {
   const admin = createAdminClient()
 
-  // 1. Fetch all included calendars with their account credentials
+  // 1. Fetch all included calendars with their account credentials + email
   const { data: calendars, error: calendarsError } = await admin
     .from('calendars')
     .select(
       `id, account_id, user_id, provider_calendar_id, name, is_included, color,
-       calendar_accounts(access_token, refresh_token)`
+       calendar_accounts(access_token, refresh_token, email)`
     )
     .eq('user_id', userId)
     .eq('is_included', true)
@@ -84,10 +94,18 @@ async function doSync(userId: string): Promise<void> {
 
   for (const cal of typedCalendars) {
     if (!providerMap.has(cal.account_id)) {
-      const accountData = Array.isArray(cal.calendar_accounts)
-        ? cal.calendar_accounts[0]
-        : cal.calendar_accounts
-      providerMap.set(cal.account_id, buildProvider(accountData))
+      providerMap.set(cal.account_id, buildProvider(getAccountData(cal)))
+    }
+  }
+
+  // 2b. Identify the primary calendar for each account.
+  //     Google convention: primary calendar ID = account email address.
+  //     Busy blocks are ONLY written to primary calendars of OTHER accounts.
+  const primaryByAccount = new Map<string, CalendarWithAccount>()
+  for (const cal of typedCalendars) {
+    const acct = getAccountData(cal)
+    if (cal.provider_calendar_id === acct.email) {
+      primaryByAccount.set(cal.account_id, cal)
     }
   }
 
@@ -132,14 +150,15 @@ async function doSync(userId: string): Promise<void> {
 
         liveEventIds.add(event.id)
 
-        // Create busy blocks on all other calendars
-        for (const targetCalendar of typedCalendars) {
-          if (targetCalendar.id === sourceCalendar.id) continue
+        // Create busy blocks ONLY on primary calendars of OTHER accounts.
+        // Never write between calendars on the same account.
+        for (const [targetAccountId, targetPrimary] of primaryByAccount) {
+          if (targetAccountId === sourceCalendar.account_id) continue
 
           await createOrUpdateBusyBlock(
             admin,
             sourceCalendar,
-            targetCalendar,
+            targetPrimary,
             event,
             providerMap,
             managedEventIds
@@ -344,6 +363,6 @@ async function cleanupOrphanedBlocks(
   }
 }
 
-function buildProvider(account: CalendarAccountCredentials): GoogleCalendarProvider {
+function buildProvider(account: AccountCredentials): GoogleCalendarProvider {
   return createGoogleProvider(account.access_token, account.refresh_token)
 }
