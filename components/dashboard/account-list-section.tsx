@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { CalendarAccount } from '@/lib/types'
 
@@ -10,6 +11,7 @@ interface AccountListSectionProps {
 }
 
 export function AccountListSection({ accounts, onDisconnect }: AccountListSectionProps) {
+  const router = useRouter()
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,8 +38,7 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
         }
       }
 
-      // Refresh page after successful disconnect
-      window.location.reload()
+      router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to disconnect account'
       setError(message)

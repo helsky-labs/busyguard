@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Calendar, CalendarAccount } from '@/lib/types'
 
 interface CalendarToggleSectionProps {
@@ -9,6 +10,7 @@ interface CalendarToggleSectionProps {
 }
 
 export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSectionProps) {
+  const router = useRouter()
   const [toggling, setToggling] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,8 +43,7 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
         throw new Error(data.error || 'Failed to update calendar')
       }
 
-      // Optimistically update UI
-      window.location.reload()
+      router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to toggle calendar'
       setError(message)
