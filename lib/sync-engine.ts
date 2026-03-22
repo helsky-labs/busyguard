@@ -217,28 +217,46 @@ async function createOrUpdateBusyBlock(
       return
     }
 
-    // 2. If DB record exists, update Google Calendar if times changed.
-    //    Compare as epoch ms to avoid false positives from format
-    //    differences (e.g. ".000Z" vs "Z", offset vs UTC).
+    // 2. If DB record exists, verify the busy event still exists on Google.
+    //    It may have been manually deleted — if so, clear the stale row
+    //    and fall through to recreate.
     if (existing) {
-      const startChanged = new Date(existing.event_start).getTime() !== new Date(busyStart).getTime()
-      const endChanged = new Date(existing.event_end).getTime() !== new Date(busyEnd).getTime()
-      if (startChanged || endChanged) {
-        await targetProvider.updateEvent(
-          targetCalendar.provider_calendar_id,
-          existing.busy_event_id,
-          {
-            start: event.start.dateTime ? { dateTime: busyStart } : { date: busyStart },
-            end: event.end.dateTime ? { dateTime: busyEnd } : { date: busyEnd },
-          }
-        )
+      const stillExists = await targetProvider.eventExists(
+        targetCalendar.provider_calendar_id,
+        existing.busy_event_id
+      )
 
-        await admin
-          .from('managed_busy_blocks')
-          .update({ event_start: busyStart, event_end: busyEnd })
-          .eq('id', existing.id)
+      if (!stillExists) {
+        logger.info('Busy event deleted from Google, clearing stale DB row', {
+          busyEventId: existing.busy_event_id,
+          sourceEventId: event.id,
+        })
+        await admin.from('managed_busy_blocks').delete().eq('id', existing.id)
+        managedEventIds.delete(existing.busy_event_id)
+        // Fall through to create a new one
+      } else {
+        // Event exists — update times if changed.
+        // Compare as epoch ms to avoid false positives from format
+        // differences (e.g. ".000Z" vs "Z", offset vs UTC).
+        const startChanged = new Date(existing.event_start).getTime() !== new Date(busyStart).getTime()
+        const endChanged = new Date(existing.event_end).getTime() !== new Date(busyEnd).getTime()
+        if (startChanged || endChanged) {
+          await targetProvider.updateEvent(
+            targetCalendar.provider_calendar_id,
+            existing.busy_event_id,
+            {
+              start: event.start.dateTime ? { dateTime: busyStart } : { date: busyStart },
+              end: event.end.dateTime ? { dateTime: busyEnd } : { date: busyEnd },
+            }
+          )
+
+          await admin
+            .from('managed_busy_blocks')
+            .update({ event_start: busyStart, event_end: busyEnd })
+            .eq('id', existing.id)
+        }
+        return
       }
-      return
     }
 
     // 3. Create new busy block on Google Calendar.
