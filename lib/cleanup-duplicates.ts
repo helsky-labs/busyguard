@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
+import { serverEnv } from '@/lib/env'
 
 interface DuplicateBlock {
   source_event_id: string
@@ -49,9 +50,9 @@ export async function cleanupDuplicates(userId: string): Promise<void> {
 
     if (!providerMap.has(cal.account_id)) {
       const provider = new GoogleCalendarProvider(
-        process.env.GOOGLE_CLIENT_ID!,
-        process.env.GOOGLE_CLIENT_SECRET!,
-        process.env.GOOGLE_REDIRECT_URI!,
+        serverEnv.GOOGLE_CLIENT_ID,
+        serverEnv.GOOGLE_CLIENT_SECRET,
+        serverEnv.GOOGLE_REDIRECT_URI,
         accountData.access_token,
         accountData.refresh_token ?? undefined
       )

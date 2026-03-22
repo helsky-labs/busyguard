@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAndRenewChannels } from '@/lib/webhook-renewal'
+import { serverEnv } from '@/lib/env'
 
 /**
  * Scheduled endpoint to renew expiring webhook channels.
@@ -15,12 +16,12 @@ export async function GET(request: NextRequest) {
   try {
     // Validate authorization
     const authHeader = request.headers.get('authorization')
-    const expectedAuth = `Bearer ${process.env.CRON_SECRET}`
+    const expectedAuth = `Bearer ${serverEnv.CRON_SECRET}`
 
     // Allow requests from:
     // 1. Vercel Cron (no auth header, special Vercel header)
     // 2. Authorized external requests (Bearer token)
-    const isVercelCron = request.headers.get('x-vercel-cron') === process.env.CRON_SECRET
+    const isVercelCron = request.headers.get('x-vercel-cron') === serverEnv.CRON_SECRET
     const isAuthorized = authHeader === expectedAuth
 
     if (!isVercelCron && !isAuthorized) {

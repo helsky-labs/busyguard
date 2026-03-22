@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
+import { serverEnv } from '@/lib/env'
 
 /**
  * NUCLEAR OPTION: Delete ALL "Busy" and "(No title)" events from included calendars
@@ -39,9 +40,9 @@ export async function nuclearCleanup(userId: string): Promise<void> {
         : cal.calendar_accounts
 
       const provider = new GoogleCalendarProvider(
-        process.env.GOOGLE_CLIENT_ID!,
-        process.env.GOOGLE_CLIENT_SECRET!,
-        process.env.GOOGLE_REDIRECT_URI!,
+        serverEnv.GOOGLE_CLIENT_ID,
+        serverEnv.GOOGLE_CLIENT_SECRET,
+        serverEnv.GOOGLE_REDIRECT_URI,
         accountData.access_token,
         accountData.refresh_token ?? undefined
       )
@@ -144,9 +145,9 @@ export async function cleanupGoogleCalendarDuplicates(userId: string): Promise<v
         : cal.calendar_accounts
 
       const provider = new GoogleCalendarProvider(
-        process.env.GOOGLE_CLIENT_ID!,
-        process.env.GOOGLE_CLIENT_SECRET!,
-        process.env.GOOGLE_REDIRECT_URI!,
+        serverEnv.GOOGLE_CLIENT_ID,
+        serverEnv.GOOGLE_CLIENT_SECRET,
+        serverEnv.GOOGLE_REDIRECT_URI,
         accountData.access_token,
         accountData.refresh_token ?? undefined
       )

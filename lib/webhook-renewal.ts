@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
+import { serverEnv, publicEnv } from '@/lib/env'
 
 interface WebhookChannel {
   id: string
@@ -102,9 +103,9 @@ async function renewWebhookChannel(
   const accountData = Array.isArray(accountsData) ? accountsData[0] : accountsData
 
   const provider = new GoogleCalendarProvider(
-    process.env.GOOGLE_CLIENT_ID!,
-    process.env.GOOGLE_CLIENT_SECRET!,
-    process.env.GOOGLE_REDIRECT_URI!,
+    serverEnv.GOOGLE_CLIENT_ID,
+    serverEnv.GOOGLE_CLIENT_SECRET,
+    serverEnv.GOOGLE_REDIRECT_URI,
     accountData.access_token,
     accountData.refresh_token ?? undefined
   )
@@ -123,8 +124,8 @@ async function renewWebhookChannel(
   }
 
   // Step 2: Set up a new watch
-  const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/google`
-  const webhookToken = process.env.GOOGLE_WEBHOOK_TOKEN!
+  const webhookUrl = `${publicEnv.APP_URL}/api/webhooks/google`
+  const webhookToken = serverEnv.GOOGLE_WEBHOOK_TOKEN
 
   const newWatch = await provider.setupWatch(
     calendar.provider_calendar_id,

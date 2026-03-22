@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider } from '@/lib/providers/google'
+import { serverEnv } from '@/lib/env'
 
 interface CalendarWithAccount {
   id: string
@@ -350,9 +351,9 @@ function buildProvider(
   account: { access_token: string; refresh_token?: string | null }
 ): GoogleCalendarProvider {
   return new GoogleCalendarProvider(
-    process.env.GOOGLE_CLIENT_ID!,
-    process.env.GOOGLE_CLIENT_SECRET!,
-    process.env.GOOGLE_REDIRECT_URI!,
+    serverEnv.GOOGLE_CLIENT_ID,
+    serverEnv.GOOGLE_CLIENT_SECRET,
+    serverEnv.GOOGLE_REDIRECT_URI,
     account.access_token,
     account.refresh_token ?? undefined
   )
