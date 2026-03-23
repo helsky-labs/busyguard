@@ -11,7 +11,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { Alert } from '@/components/ui/alert'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, getTokenHealth } from '@/lib/utils'
 
 interface CalendarAccount {
   id: string
@@ -19,6 +19,8 @@ interface CalendarAccount {
   email: string
   display_name: string
   created_at: string
+  token_expires_at: string | null
+  refresh_token: string | null
 }
 
 interface Calendar {
@@ -27,11 +29,19 @@ interface Calendar {
   name: string
   is_included: boolean
   last_sync_at: string | null
+  color: string | null
 }
 
-const providerColors: Record<string, string> = {
-  google: 'bg-blue-500',
-  microsoft: 'bg-gray-400',
+const healthColors: Record<string, string> = {
+  healthy: 'bg-green-500',
+  warning: 'bg-amber-500',
+  broken: 'bg-red-500',
+}
+
+const healthLabels: Record<string, string> = {
+  healthy: 'Connected',
+  warning: 'Token expiring',
+  broken: 'Re-authentication needed',
 }
 
 export default function AccountsPage() {
@@ -54,11 +64,11 @@ export default function AccountsPage() {
     const [accountsRes, calendarsRes] = await Promise.all([
       supabase
         .from('calendar_accounts')
-        .select('id, provider, email, display_name, created_at')
+        .select('id, provider, email, display_name, created_at, token_expires_at, refresh_token')
         .order('created_at', { ascending: false }),
       supabase
         .from('calendars')
-        .select('id, account_id, name, is_included, last_sync_at')
+        .select('id, account_id, name, is_included, last_sync_at, color')
         .order('name', { ascending: true }),
     ])
 
@@ -204,6 +214,7 @@ export default function AccountsPage() {
             {accounts.map((account) => {
               const accountCalendars = getCalendarsForAccount(account.id)
               const enabledCount = accountCalendars.filter((c) => c.is_included).length
+              const health = getTokenHealth(account.token_expires_at, !!account.refresh_token)
 
               return (
                 <Card key={account.id}>
@@ -211,7 +222,10 @@ export default function AccountsPage() {
                   <div className="px-4 sm:px-6 py-4 flex items-start sm:items-center justify-between gap-3 border-b border-gray-100">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2.5">
-                        <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${providerColors[account.provider] || 'bg-gray-400'}`} />
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full shrink-0 ${healthColors[health]}`}
+                          title={healthLabels[health]}
+                        />
                         <p className="font-medium text-gray-900 truncate">
                           {account.display_name || account.email}
                         </p>
@@ -253,6 +267,10 @@ export default function AccountsPage() {
                                 checked={cal.is_included}
                                 onChange={() => handleToggle(cal.id, cal.is_included)}
                                 disabled={toggling === cal.id}
+                              />
+                              <span
+                                className="h-2 w-2 rounded-full shrink-0"
+                                style={{ backgroundColor: cal.color || '#9CA3AF' }}
                               />
                               <span className="text-sm text-gray-900 truncate">{cal.name}</span>
                             </div>

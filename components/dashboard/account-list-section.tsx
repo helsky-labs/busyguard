@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import type { CalendarAccount } from '@/lib/types'
+import { getTokenHealth } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,9 +17,16 @@ interface AccountListSectionProps {
   onDisconnect?: (accountId: string) => Promise<void>
 }
 
-const providerColors: Record<string, string> = {
-  google: 'bg-blue-500',
-  microsoft: 'bg-gray-400',
+const healthColors: Record<string, string> = {
+  healthy: 'bg-green-500',
+  warning: 'bg-amber-500',
+  broken: 'bg-red-500',
+}
+
+const healthLabels: Record<string, string> = {
+  healthy: 'Connected',
+  warning: 'Token expiring',
+  broken: 'Re-authentication needed',
 }
 
 export function AccountListSection({ accounts, onDisconnect }: AccountListSectionProps) {
@@ -82,41 +90,48 @@ export function AccountListSection({ accounts, onDisconnect }: AccountListSectio
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="space-y-3">
-        {accounts.map((account) => (
-          <Card
-            key={account.id}
-            className="hover:shadow-sm transition-shadow"
-          >
-            <CardContent className="flex items-center justify-between py-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2.5 mb-1">
-                  <span className={`h-2.5 w-2.5 rounded-full ${providerColors[account.provider] || 'bg-gray-400'}`} />
-                  <p className="font-medium text-gray-900">
-                    {account.display_name || account.email}
-                  </p>
-                  <Badge variant="default">
-                    {account.provider === 'google' ? 'Google' : 'Outlook'}
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-500 ml-5">{account.email}</p>
-                <p className="text-xs text-gray-400 ml-5 mt-0.5">
-                  Connected {new Date(account.created_at).toLocaleDateString()}
-                </p>
-              </div>
+        {accounts.map((account) => {
+          const health = getTokenHealth(account.token_expires_at ?? null, !!account.refresh_token)
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmId(account.id)}
-                loading={disconnecting === account.id}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4"
-                aria-label={`Disconnect ${account.display_name || account.email}`}
-              >
-                {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+          return (
+            <Card
+              key={account.id}
+              className="hover:shadow-sm transition-shadow"
+            >
+              <CardContent className="flex items-center justify-between py-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2.5 mb-1">
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full shrink-0 ${healthColors[health]}`}
+                      title={healthLabels[health]}
+                    />
+                    <p className="font-medium text-gray-900">
+                      {account.display_name || account.email}
+                    </p>
+                    <Badge variant="default">
+                      {account.provider === 'google' ? 'Google' : 'Outlook'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-500 ml-5">{account.email}</p>
+                  <p className="text-xs text-gray-400 ml-5 mt-0.5">
+                    Connected {new Date(account.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmId(account.id)}
+                  loading={disconnecting === account.id}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4"
+                  aria-label={`Disconnect ${account.display_name || account.email}`}
+                >
+                  {disconnecting === account.id ? 'Disconnecting...' : 'Disconnect'}
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       <div className="pt-1">

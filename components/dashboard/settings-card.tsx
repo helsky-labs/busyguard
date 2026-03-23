@@ -79,7 +79,9 @@ export function SettingsCard({ settings: initial }: SettingsCardProps) {
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-400">How far ahead to sync events</p>
+          <p className="text-xs text-gray-400">
+            {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(Date.now() + syncAheadDays * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </p>
         </div>
 
         {/* Busy Block Title */}

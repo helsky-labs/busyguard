@@ -9,6 +9,12 @@ import { SettingsCard } from '@/components/dashboard/settings-card'
 import { AccountListSection } from '@/components/dashboard/account-list-section'
 import { CalendarToggleSection } from '@/components/dashboard/calendar-toggle-section'
 import { ConnectAccountCard } from '@/components/dashboard/connect-account-card'
+import { OnboardingEmptyState } from '@/components/dashboard/onboarding-empty-state'
+import { SyncActivityFeed } from '@/components/dashboard/sync-activity-feed'
+import { BusyBlockTimeline } from '@/components/dashboard/busy-block-timeline'
+import { UpcomingBlocksList } from '@/components/dashboard/upcoming-blocks-list'
+import { SyncMap } from '@/components/dashboard/sync-map'
+import { getBusyBlocksForUser } from '@/lib/queries/busy-blocks'
 
 export const revalidate = 30
 
@@ -22,7 +28,7 @@ export default async function DashboardPage() {
 
   const { data: accountsData } = await supabase
     .from('calendar_accounts')
-    .select('id, provider, email, display_name, created_at, updated_at, user_id, access_token, refresh_token')
+    .select('id, provider, email, display_name, created_at, updated_at, user_id, access_token, refresh_token, token_expires_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -56,14 +62,48 @@ export default async function DashboardPage() {
     }
   }
 
-  // Fetch user settings
-  const { data: settingsData } = await supabase
-    .from('user_settings')
-    .select('sync_ahead_days, busy_block_title, auto_sync_enabled')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // Fetch user settings and recent activity in parallel
+  const [{ data: settingsData }, { data: activityData }] = await Promise.all([
+    supabase
+      .from('user_settings')
+      .select('sync_ahead_days, busy_block_title, auto_sync_enabled')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('sync_activity_log')
+      .select('id, sync_id, action, source_calendar_id, target_calendar_id, detail, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ])
 
   const userSettings = settingsData ?? DEFAULT_USER_SETTINGS
+  const activities = activityData || []
+
+  // Build calendar lookup map for activity feed
+  const calendarMap: Record<string, { name: string; color: string | null }> = {}
+  for (const cal of calendars) {
+    calendarMap[cal.id] = { name: cal.name, color: cal.color }
+  }
+
+  // Fetch busy blocks for timeline and upcoming list
+  const syncAheadDays = userSettings.sync_ahead_days
+  const busyBlocks = accounts.length > 0
+    ? await getBusyBlocksForUser(supabase, user.id, {
+        timeMin: new Date(Date.now() - 86400000).toISOString(),
+        timeMax: new Date(Date.now() + syncAheadDays * 86400000).toISOString(),
+      })
+    : []
+
+  // Split into today's blocks (for timeline) and all blocks (for list)
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+  const todayBlocks = busyBlocks.filter((b) => {
+    const start = new Date(b.event_start).getTime()
+    return start >= todayStart.getTime() && start < tomorrowStart.getTime()
+  })
 
   const totalBlocks = Object.values(busyBlockCounts).reduce((sum, n) => sum + n, 0)
   const enabledCalendars = calendars.filter((c) => c.is_included).length
@@ -102,6 +142,11 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      {/* Sync Map */}
+      {accounts.length >= 2 && (
+        <SyncMap calendars={calendars} accounts={accounts} />
+      )}
+
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left column */}
@@ -110,6 +155,12 @@ export default async function DashboardPage() {
           {calendars.length > 0 && (
             <CalendarToggleSection calendars={calendars} accounts={accounts} />
           )}
+          {todayBlocks.length > 0 && (
+            <BusyBlockTimeline blocks={todayBlocks} busyBlockTitle={userSettings.busy_block_title} />
+          )}
+          {busyBlocks.length > 0 && (
+            <UpcomingBlocksList blocks={busyBlocks} />
+          )}
         </div>
 
         {/* Right column */}
@@ -117,33 +168,16 @@ export default async function DashboardPage() {
           {calendars.length > 0 && (
             <SyncStatusCard calendars={calendars} busyBlockCounts={busyBlockCounts} />
           )}
+          {activities.length > 0 && (
+            <SyncActivityFeed activities={activities} calendarMap={calendarMap} />
+          )}
           <SettingsCard settings={userSettings} />
           <ConnectAccountCard />
         </div>
       </div>
 
       {/* Empty State */}
-      {accounts.length === 0 && (
-        <Card className="text-center">
-          <CardContent className="py-12">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary-50 text-primary-600 mb-4">
-              <CalendarDays className="h-7 w-7" />
-            </div>
-            <h2 className="font-display text-xl font-bold text-gray-900 mb-2">
-              Get started with BusyGuard
-            </h2>
-            <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-              Connect your Google or Outlook calendar to sync your events
-            </p>
-            <a
-              href="/dashboard/accounts"
-              className="inline-flex items-center px-5 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors shadow-xs"
-            >
-              Connect your first account
-            </a>
-          </CardContent>
-        </Card>
-      )}
+      {accounts.length === 0 && <OnboardingEmptyState />}
     </div>
   )
 }

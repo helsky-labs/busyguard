@@ -53,7 +53,13 @@ export function SyncStatusCard({ calendars, busyBlockCounts }: SyncStatusCardPro
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Last Synced</p>
             {enabledCalendars.map((cal) => (
               <div key={cal.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700 truncate flex-1 mr-2">{cal.name}</span>
+                <div className="flex items-center gap-2 flex-1 mr-2 min-w-0">
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: cal.color || '#9CA3AF' }}
+                  />
+                  <span className="text-gray-700 truncate">{cal.name}</span>
+                </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 shrink-0">
                   {busyBlockCounts[cal.id] ? (
                     <span>{busyBlockCounts[cal.id]} blocks</span>

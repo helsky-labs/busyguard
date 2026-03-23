@@ -6,6 +6,7 @@ export interface CalendarAccount {
   display_name: string | null
   access_token: string
   refresh_token: string | null
+  token_expires_at: string | null
   created_at: string
   updated_at: string
 }

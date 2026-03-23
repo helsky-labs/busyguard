@@ -112,6 +112,10 @@ export function CalendarToggleSection({ calendars, accounts }: CalendarToggleSec
                           onChange={() => handleToggle(calendar.id, calendar.is_included)}
                           disabled={toggling === calendar.id}
                         />
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: calendar.color || '#9CA3AF' }}
+                        />
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900 text-sm truncate">
                             {calendar.name}

@@ -6,6 +6,17 @@ import { DEFAULT_USER_SETTINGS } from '@/lib/types'
 
 const SYNC_LOOKBACK_DAYS = 1
 
+interface SyncActivityEntry {
+  user_id: string
+  sync_id: string
+  action: 'created' | 'updated' | 'deleted' | 'error' | 'skipped'
+  source_calendar_id?: string
+  target_calendar_id?: string
+  source_event_id?: string
+  busy_event_id?: string
+  detail?: string | null
+}
+
 interface AccountCredentials {
   access_token: string
   refresh_token?: string | null
@@ -61,6 +72,8 @@ export async function syncCalendars(
 
 async function doSync(userId: string): Promise<void> {
   const admin = createAdminClient()
+  const syncId = crypto.randomUUID()
+  const activityLog: SyncActivityEntry[] = []
 
   // 0. Fetch user settings (sync range, busy block title, auto-sync)
   const { data: settings } = await admin
@@ -195,7 +208,10 @@ async function doSync(userId: string): Promise<void> {
             providerMap,
             managedEventIds,
             targetExistingIds.get(targetPrimary.id),
-            busyBlockTitle
+            busyBlockTitle,
+            activityLog,
+            syncId,
+            userId
           )
         }
       }
@@ -208,7 +224,7 @@ async function doSync(userId: string): Promise<void> {
   }
 
   // 4. Cleanup orphaned blocks (source event deleted)
-  await cleanupOrphanedBlocks(admin, userId, liveEventIds, providerMap)
+  await cleanupOrphanedBlocks(admin, userId, liveEventIds, providerMap, activityLog, syncId)
 
   // 5. Update last_sync_at on all included calendars
   const calendarIds = typedCalendars.map((c) => c.id)
@@ -217,7 +233,17 @@ async function doSync(userId: string): Promise<void> {
     .update({ last_sync_at: new Date().toISOString() })
     .in('id', calendarIds)
 
-  logger.info('Sync complete', { userId, liveEvents: liveEventIds.size })
+  // 6. Flush activity log
+  if (activityLog.length > 0) {
+    const { error: logError } = await admin
+      .from('sync_activity_log')
+      .insert(activityLog)
+    if (logError) {
+      logger.error('Failed to write sync activity log', { error: logError })
+    }
+  }
+
+  logger.info('Sync complete', { userId, liveEvents: liveEventIds.size, activities: activityLog.length })
 }
 
 /**
@@ -232,7 +258,10 @@ async function createOrUpdateBusyBlock(
   providerMap: Map<string, GoogleCalendarProvider>,
   managedEventIds: Set<string>,
   targetExistingEventIds: Set<string> | undefined,
-  busyBlockTitle: string
+  busyBlockTitle: string,
+  activityLog: SyncActivityEntry[],
+  syncId: string,
+  userId: string
 ): Promise<void> {
   const busyStart = (event.start.dateTime || event.start.date)!
   const busyEnd = (event.end.dateTime || event.end.date)!
@@ -286,8 +315,19 @@ async function createOrUpdateBusyBlock(
 
           await admin
             .from('managed_busy_blocks')
-            .update({ event_start: busyStart, event_end: busyEnd })
+            .update({ event_start: busyStart, event_end: busyEnd, source_event_summary: event.summary || null })
             .eq('id', existing.id)
+
+          activityLog.push({
+            user_id: userId,
+            sync_id: syncId,
+            action: 'updated',
+            source_calendar_id: sourceCalendar.id,
+            target_calendar_id: targetCalendar.id,
+            source_event_id: event.id,
+            busy_event_id: existing.busy_event_id,
+            detail: event.summary || null,
+          })
         }
         return
       }
@@ -329,6 +369,7 @@ async function createOrUpdateBusyBlock(
       target_calendar_id: targetCalendar.id,
       event_start: busyStart,
       event_end: busyEnd,
+      source_event_summary: event.summary || null,
     })
 
     if (insertError) {
@@ -345,11 +386,31 @@ async function createOrUpdateBusyBlock(
     // Update in-memory set so any subsequent calendar in this same sync
     // iteration recognizes this event as managed
     managedEventIds.add(created.id)
+
+    activityLog.push({
+      user_id: userId,
+      sync_id: syncId,
+      action: 'created',
+      source_calendar_id: sourceCalendar.id,
+      target_calendar_id: targetCalendar.id,
+      source_event_id: event.id,
+      busy_event_id: created.id,
+      detail: event.summary || null,
+    })
   } catch (error) {
     logger.error('Error creating/updating busy block', {
       source: sourceCalendar.name,
       target: targetCalendar.name,
       error: error instanceof Error ? error.message : String(error),
+    })
+    activityLog.push({
+      user_id: userId,
+      sync_id: syncId,
+      action: 'error',
+      source_calendar_id: sourceCalendar.id,
+      target_calendar_id: targetCalendar.id,
+      source_event_id: event.id,
+      detail: error instanceof Error ? error.message : String(error),
     })
   }
 }
@@ -369,7 +430,9 @@ async function cleanupOrphanedBlocks(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   liveEventIds: Set<string>,
-  providerMap: Map<string, GoogleCalendarProvider>
+  providerMap: Map<string, GoogleCalendarProvider>,
+  activityLog: SyncActivityEntry[],
+  syncId: string
 ): Promise<void> {
   const { data: allBlocks, error: blocksError } = await admin
     .from('managed_busy_blocks')
@@ -401,6 +464,15 @@ async function cleanupOrphanedBlocks(
       logger.info('Deleted orphaned busy block from Google', {
         busyEventId: block.busy_event_id,
         sourceEventId: block.source_event_id,
+      })
+
+      activityLog.push({
+        user_id: userId,
+        sync_id: syncId,
+        action: 'deleted',
+        target_calendar_id: block.target_calendar_id,
+        source_event_id: block.source_event_id,
+        busy_event_id: block.busy_event_id,
       })
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
