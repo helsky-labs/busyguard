@@ -116,11 +116,34 @@ async function doSync(userId: string): Promise<void> {
     }
   }
 
+  // 2a. Refresh calendar list from Google — discovers new calendars,
+  //     updates names/colors, does NOT delete or toggle existing entries.
+  await refreshCalendarList(admin, userId, typedCalendars, providerMap)
+
+  // Re-fetch calendars after refresh to pick up any newly included ones
+  const { data: refreshedCalendars } = await admin
+    .from('calendars')
+    .select(
+      `id, account_id, user_id, provider_calendar_id, name, is_included, color,
+       calendar_accounts(access_token, refresh_token, email)`
+    )
+    .eq('user_id', userId)
+    .eq('is_included', true)
+
+  const allCalendars = (refreshedCalendars || typedCalendars) as CalendarWithAccount[]
+
+  // Rebuild provider map in case new accounts appeared
+  for (const cal of allCalendars) {
+    if (!providerMap.has(cal.account_id)) {
+      providerMap.set(cal.account_id, buildProvider(getAccountData(cal)))
+    }
+  }
+
   // 2b. Identify the primary calendar for each account.
   //     Google convention: primary calendar ID = account email address.
   //     Busy blocks are ONLY written to primary calendars of OTHER accounts.
   const primaryByAccount = new Map<string, CalendarWithAccount>()
-  for (const cal of typedCalendars) {
+  for (const cal of allCalendars) {
     const acct = getAccountData(cal)
     if (cal.provider_calendar_id === acct.email) {
       primaryByAccount.set(cal.account_id, cal)
@@ -141,7 +164,7 @@ async function doSync(userId: string): Promise<void> {
 
   logger.info('Sync starting', {
     userId,
-    calendars: typedCalendars.length,
+    calendars: allCalendars.length,
     managedEventIds: managedEventIds.size,
     syncAheadDays,
   })
@@ -179,7 +202,7 @@ async function doSync(userId: string): Promise<void> {
   // 3b. Process each source calendar
   const liveEventIds = new Set<string>()
 
-  for (const sourceCalendar of typedCalendars) {
+  for (const sourceCalendar of allCalendars) {
     try {
       const provider = providerMap.get(sourceCalendar.account_id)!
       const events = await provider.listEvents(
@@ -227,7 +250,7 @@ async function doSync(userId: string): Promise<void> {
   await cleanupOrphanedBlocks(admin, userId, liveEventIds, providerMap, activityLog, syncId)
 
   // 5. Update last_sync_at on all included calendars
-  const calendarIds = typedCalendars.map((c) => c.id)
+  const calendarIds = allCalendars.map((c) => c.id)
   await admin
     .from('calendars')
     .update({ last_sync_at: new Date().toISOString() })
@@ -244,6 +267,81 @@ async function doSync(userId: string): Promise<void> {
   }
 
   logger.info('Sync complete', { userId, liveEvents: liveEventIds.size, activities: activityLog.length })
+}
+
+/**
+ * Refresh calendar list from Google for all connected accounts.
+ * Discovers new calendars, updates names/colors for existing ones.
+ * Does NOT delete calendars or change is_included.
+ */
+async function refreshCalendarList(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  knownCalendars: CalendarWithAccount[],
+  providerMap: Map<string, GoogleCalendarProvider>
+): Promise<void> {
+  // Group known calendars by account to avoid redundant API calls
+  const accountIds = new Set(knownCalendars.map((c) => c.account_id))
+
+  for (const accountId of accountIds) {
+    const provider = providerMap.get(accountId)
+    if (!provider) continue
+
+    try {
+      const googleCalendars = await provider.listCalendars()
+
+      // Get all existing provider_calendar_ids for this account (not just included ones)
+      const { data: existingCalendars } = await admin
+        .from('calendars')
+        .select('id, provider_calendar_id')
+        .eq('account_id', accountId)
+
+      const existingIds = new Set(
+        existingCalendars?.map((c) => c.provider_calendar_id) ?? []
+      )
+
+      // Insert new calendars
+      const newCalendars = googleCalendars.filter((gc) => !existingIds.has(gc.id))
+      if (newCalendars.length > 0) {
+        const toInsert = newCalendars.map((gc) => ({
+          account_id: accountId,
+          user_id: userId,
+          provider_calendar_id: gc.id,
+          name: gc.summary,
+          color: gc.backgroundColor || null,
+          is_included: false,
+        }))
+
+        const { error } = await admin.from('calendars').insert(toInsert)
+        if (error) {
+          logger.error('Failed to insert new calendars', { accountId, error })
+        } else {
+          logger.info('Discovered new calendars', {
+            accountId,
+            count: newCalendars.length,
+            names: newCalendars.map((c) => c.summary),
+          })
+        }
+      }
+
+      // Update name/color for existing calendars (in case user renamed in Google)
+      for (const gc of googleCalendars) {
+        if (!existingIds.has(gc.id)) continue
+        const existing = existingCalendars?.find((c) => c.provider_calendar_id === gc.id)
+        if (!existing) continue
+
+        await admin
+          .from('calendars')
+          .update({ name: gc.summary, color: gc.backgroundColor || null })
+          .eq('id', existing.id)
+      }
+    } catch (error) {
+      logger.error('Failed to refresh calendar list', {
+        accountId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 }
 
 /**
