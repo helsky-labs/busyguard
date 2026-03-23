@@ -2,14 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleCalendarProvider, createGoogleProvider, type GoogleEvent } from '@/lib/providers/google'
 import { logger } from '@/lib/logger'
 import { acquireSyncLock, releaseSyncLock } from '@/lib/sync-lock'
-// CalendarAccountCredentials replaced by local AccountCredentials (adds email)
+import { DEFAULT_USER_SETTINGS } from '@/lib/types'
 
-/**
- * How far ahead (in days) to sync events. Configurable via env var.
- * Default: 2 days (today + tomorrow). Keep this tight to minimise
- * managed events and reduce duplicate risk.
- */
-const SYNC_AHEAD_DAYS = parseInt(process.env.BUSYGUARD_SYNC_AHEAD_DAYS || '2', 10)
 const SYNC_LOOKBACK_DAYS = 1
 
 interface AccountCredentials {
@@ -67,6 +61,16 @@ export async function syncCalendars(
 
 async function doSync(userId: string): Promise<void> {
   const admin = createAdminClient()
+
+  // 0. Fetch user settings (sync range, busy block title, auto-sync)
+  const { data: settings } = await admin
+    .from('user_settings')
+    .select('sync_ahead_days, busy_block_title, auto_sync_enabled')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  const syncAheadDays = settings?.sync_ahead_days ?? DEFAULT_USER_SETTINGS.sync_ahead_days
+  const busyBlockTitle = settings?.busy_block_title ?? DEFAULT_USER_SETTINGS.busy_block_title
 
   // 1. Fetch all included calendars with their account credentials + email
   const { data: calendars, error: calendarsError } = await admin
@@ -126,12 +130,12 @@ async function doSync(userId: string): Promise<void> {
     userId,
     calendars: typedCalendars.length,
     managedEventIds: managedEventIds.size,
-    syncAheadDays: SYNC_AHEAD_DAYS,
+    syncAheadDays,
   })
 
   // 3. Prepare sync window
   const timeMin = new Date(Date.now() - SYNC_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
-  const timeMax = new Date(Date.now() + SYNC_AHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  const timeMax = new Date(Date.now() + syncAheadDays * 24 * 60 * 60 * 1000).toISOString()
 
   // 3a. List existing events on each target (primary) calendar so we can
   //     detect busy blocks that were manually deleted from Google without
@@ -190,7 +194,8 @@ async function doSync(userId: string): Promise<void> {
             event,
             providerMap,
             managedEventIds,
-            targetExistingIds.get(targetPrimary.id)
+            targetExistingIds.get(targetPrimary.id),
+            busyBlockTitle
           )
         }
       }
@@ -226,7 +231,8 @@ async function createOrUpdateBusyBlock(
   event: GoogleEvent,
   providerMap: Map<string, GoogleCalendarProvider>,
   managedEventIds: Set<string>,
-  targetExistingEventIds?: Set<string>
+  targetExistingEventIds: Set<string> | undefined,
+  busyBlockTitle: string
 ): Promise<void> {
   const busyStart = (event.start.dateTime || event.start.date)!
   const busyEnd = (event.end.dateTime || event.end.date)!
@@ -294,7 +300,7 @@ async function createOrUpdateBusyBlock(
     const created = await targetProvider.createEvent(
       targetCalendar.provider_calendar_id,
       {
-        summary: 'Busy',
+        summary: busyBlockTitle,
         start: event.start.dateTime
           ? { dateTime: busyStart, timeZone: event.start.timeZone ?? undefined }
           : { date: busyStart },

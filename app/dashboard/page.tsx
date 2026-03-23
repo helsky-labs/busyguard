@@ -2,8 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Users, CalendarDays, Shield } from 'lucide-react'
 import type { Calendar, CalendarAccount } from '@/lib/types'
+import { DEFAULT_USER_SETTINGS } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { SyncStatusCard } from '@/components/dashboard/sync-status-card'
+import { SettingsCard } from '@/components/dashboard/settings-card'
 import { AccountListSection } from '@/components/dashboard/account-list-section'
 import { CalendarToggleSection } from '@/components/dashboard/calendar-toggle-section'
 import { ConnectAccountCard } from '@/components/dashboard/connect-account-card'
@@ -53,6 +55,15 @@ export default async function DashboardPage() {
       }
     }
   }
+
+  // Fetch user settings
+  const { data: settingsData } = await supabase
+    .from('user_settings')
+    .select('sync_ahead_days, busy_block_title, auto_sync_enabled')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const userSettings = settingsData ?? DEFAULT_USER_SETTINGS
 
   const totalBlocks = Object.values(busyBlockCounts).reduce((sum, n) => sum + n, 0)
   const enabledCalendars = calendars.filter((c) => c.is_included).length
@@ -106,6 +117,7 @@ export default async function DashboardPage() {
           {calendars.length > 0 && (
             <SyncStatusCard calendars={calendars} busyBlockCounts={busyBlockCounts} />
           )}
+          <SettingsCard settings={userSettings} />
           <ConnectAccountCard />
         </div>
       </div>

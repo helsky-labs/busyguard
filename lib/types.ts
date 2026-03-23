@@ -47,3 +47,24 @@ export interface CalendarAccountCredentials {
   access_token: string
   refresh_token?: string | null
 }
+
+export interface UserSettings {
+  user_id: string
+  sync_ahead_days: 3 | 7 | 30
+  busy_block_title: string
+  auto_sync_enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export const SYNC_RANGE_OPTIONS = [
+  { value: 3, label: '3 days' },
+  { value: 7, label: '1 week' },
+  { value: 30, label: '1 month' },
+] as const
+
+export const DEFAULT_USER_SETTINGS: Pick<UserSettings, 'sync_ahead_days' | 'busy_block_title' | 'auto_sync_enabled'> = {
+  sync_ahead_days: 3,
+  busy_block_title: 'Busy',
+  auto_sync_enabled: true,
+}

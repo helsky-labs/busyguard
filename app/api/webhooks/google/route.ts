@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { syncCalendars } from '@/lib/sync-engine'
 import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { DEFAULT_USER_SETTINGS } from '@/lib/types'
 
 const DEBOUNCE_SECONDS = 30
 
@@ -48,7 +49,20 @@ export async function POST(request: NextRequest) {
     const userId = (calendarData as { user_id: string; last_sync_at: string | null }).user_id
     const lastSyncAt = (calendarData as { user_id: string; last_sync_at: string | null }).last_sync_at
 
-    // 3. Debounce: skip if last sync was within threshold
+    // 3. Check if auto-sync is enabled for this user
+    const { data: settings } = await admin
+      .from('user_settings')
+      .select('auto_sync_enabled')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const autoSyncEnabled = settings?.auto_sync_enabled ?? DEFAULT_USER_SETTINGS.auto_sync_enabled
+    if (!autoSyncEnabled) {
+      logger.info('Auto-sync disabled for user, skipping webhook', { userId })
+      return NextResponse.json({ received: true })
+    }
+
+    // 4. Debounce: skip if last sync was within threshold
     if (lastSyncAt) {
       const elapsed = (Date.now() - new Date(lastSyncAt).getTime()) / 1000
       if (elapsed < DEBOUNCE_SECONDS) {
@@ -57,7 +71,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Trigger sync (sync lock inside syncCalendars prevents concurrency)
+    // 5. Trigger sync (sync lock inside syncCalendars prevents concurrency)
     logger.info('Webhook triggering sync', { userId, channelId })
     await syncCalendars(userId, 'webhook')
 
